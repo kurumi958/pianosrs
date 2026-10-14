@@ -1,0 +1,86 @@
+import type { CardState, Grade } from './srs/scheduler';
+
+export type SightClef = 'treble' | 'bass' | 'alternate';
+
+export interface Settings {
+  enabledDecks: string[];
+  newPerDay: number;
+  easyMs: number;
+  goodMs: number;
+  /** Accept the right note in any octave (handy for small 25/32-key controllers). */
+  ignoreOctave: boolean;
+  phraseLength: number;
+  sightClef: SightClef;
+  /** "all" listens to every connected MIDI input. */
+  midiInput: string;
+  /** Play a tone for on-screen / computer-keyboard input (a real piano makes its own sound). */
+  onscreenSound: boolean;
+}
+
+export const DEFAULT_SETTINGS: Settings = {
+  enabledDecks: ['treble-staff', 'bass-staff'],
+  newPerDay: 10,
+  easyMs: 2000,
+  goodMs: 5000,
+  ignoreOctave: false,
+  phraseLength: 8,
+  sightClef: 'treble',
+  midiInput: 'all',
+  onscreenSound: true,
+};
+
+export interface ReviewLogEntry {
+  id: string;
+  t: number;
+  grade: Grade;
+  ms: number;
+}
+
+export interface AppData {
+  version: 1;
+  cards: Record<string, CardState>;
+  settings: Settings;
+  /** Day key → number of new cards introduced that day. */
+  newByDay: Record<string, number>;
+  log: ReviewLogEntry[];
+}
+
+const KEY = 'pianosrs:v1';
+const MAX_LOG = 20_000;
+
+export function emptyData(): AppData {
+  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS }, newByDay: {}, log: [] };
+}
+
+export function loadData(): AppData {
+  try {
+    const raw = localStorage.getItem(KEY);
+    if (!raw) return emptyData();
+    return normalize(JSON.parse(raw));
+  } catch {
+    return emptyData();
+  }
+}
+
+export function saveData(d: AppData): void {
+  if (d.log.length > MAX_LOG) d.log = d.log.slice(-MAX_LOG);
+  localStorage.setItem(KEY, JSON.stringify(d));
+}
+
+export function normalize(raw: unknown): AppData {
+  const d = raw as Partial<AppData>;
+  if (!d || typeof d !== 'object' || d.version !== 1) throw new Error('Not a PianoSRS backup');
+  return {
+    version: 1,
+    cards: d.cards ?? {},
+    settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}) },
+    newByDay: d.newByDay ?? {},
+    log: d.log ?? [],
+  };
+}
+
+/** Days roll over at 4am local time, like Anki, so late-night sessions count as the same day. */
+export function dayKey(now: number): string {
+  const d = new Date(now - 4 * 3_600_000);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}

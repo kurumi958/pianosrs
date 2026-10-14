@@ -73,7 +73,7 @@ export function withKey(card: Card, key: string): Card | null {
 }
 
 /**
- * A copy of a card for the test decks, with its own id ("test:" + the original) so practising it
+ * A copy of a card for the test decks, with its own id ("test:" + the original) so practicing it
  * never touches progress on the real card.
  */
 export function asTest(card: Card): Card {

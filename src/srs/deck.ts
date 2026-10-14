@@ -307,7 +307,7 @@ export const TOPIC_DECKS: DeckDef[] = [
 
 /**
  * Test decks: a few cards from each group that between them use every feature of that group, for checking
- * the app with a real piano. Their cards have their own ids, so practising them leaves real progress alone.
+ * the app with a real piano. Their cards have their own ids, so practicing them leaves real progress alone.
  */
 const P = parsePitch;
 const testDeck = (id: string, name: string, description: string, cards: Card[]): DeckDef => ({

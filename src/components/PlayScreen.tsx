@@ -3,7 +3,7 @@ import { useHeldNotes, useKeyMarks } from '../hooks';
 import { Piano } from './Piano';
 
 interface Props {
-  /** Context: counts, where you are, what's being practised. */
+  /** Context: counts, where you are, what's being practiced. */
   left: ReactNode;
   /** The music box. */
   music: ReactNode;

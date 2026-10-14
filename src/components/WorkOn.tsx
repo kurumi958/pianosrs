@@ -6,14 +6,14 @@ import type { AppData } from '../storage';
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
-  onPractise: (focus: Focus) => void;
+  onPractice: (focus: Focus) => void;
 }
 
 const ago = (t: number | undefined, now: number) => (t ? `${formatDelay(now - t)} ago` : '');
 const where = (c: Card) => (c.rhythm ? 'rhythm' : c.prompt === 'key' ? 'key signature' : STAFF_LABEL[c.staff]);
 
 /** Things to work on: notes often misread in sight-reading, and flash cards that keep being forgotten. */
-export function WorkOn({ data, update, onPractise }: Props) {
+export function WorkOn({ data, update, onPractice }: Props) {
   const now = Date.now();
   const { sight, leeches } = weakSpots(data, now);
   const everything = [...new Map([...sight, ...leeches].map((s) => [s.card.id, s.card])).values()];
@@ -29,7 +29,7 @@ export function WorkOn({ data, update, onPractise }: Props) {
     <div className="page-inner">
       <header className="page-head">
         <h2>Things to work on</h2>
-        <p>Notes you often misread when sight-reading, and flash cards you keep forgetting. Practise them in phrases built around them.</p>
+        <p>Notes you often misread when sight-reading, and flash cards you keep forgetting. Practice them in phrases built around them.</p>
       </header>
 
       {everything.length === 0 ? (
@@ -42,8 +42,8 @@ export function WorkOn({ data, update, onPractise }: Props) {
         </section>
       ) : (
         <div className="row">
-          <button className="primary" onClick={() => onPractise({ title: `All ${everything.length} things to work on`, cards: everything })}>
-            Practise all {everything.length}
+          <button className="primary" onClick={() => onPractice({ title: `All ${everything.length} things to work on`, cards: everything })}>
+            Practice all {everything.length}
           </button>
           <span className="muted small">A sight-reading session that keeps coming back to these, mixed with notes you know.</span>
         </div>
@@ -63,8 +63,8 @@ export function WorkOn({ data, update, onPractise }: Props) {
                     {s.lastMiss && ` · last missed ${ago(s.lastMiss, now)}`}
                   </small>
                 </span>
-                <button className="small" onClick={() => onPractise({ title: cardLabel(s.card), cards: [s.card] })}>
-                  Practise
+                <button className="small" onClick={() => onPractice({ title: cardLabel(s.card), cards: [s.card] })}>
+                  Practice
                 </button>
               </li>
             ))}
@@ -87,8 +87,8 @@ export function WorkOn({ data, update, onPractise }: Props) {
                       {where(l.card)} · forgotten {l.lapses} times · last {ago(l.lastForgotten, now)}
                     </small>
                   </span>
-                  <button className="small" onClick={() => onPractise({ title: cardLabel(l.card), cards: [l.card] })}>
-                    Practise
+                  <button className="small" onClick={() => onPractice({ title: cardLabel(l.card), cards: [l.card] })}>
+                    Practice
                   </button>
                   <button className="small" disabled={dueNow} onClick={() => reviewNow(l.card.id)} title="Bring the flash card back today">
                     {dueNow ? 'Due now' : 'Review now'}

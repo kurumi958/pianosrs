@@ -122,7 +122,7 @@ export function phraseEvents(phrase: Phrase): PhraseEvent[] {
 const note = (card: Card, clef: Clef, dur: Dur): PhraseNote => ({ pitches: card.hands[clef].length ? card.hands[clef] : card.notes, dur, card });
 const rest = (dur: Dur): PhraseNote => ({ pitches: [], dur });
 
-/** Plain quarter notes, for phrases that aren't practising rhythm. */
+/** Plain quarter notes, for phrases that aren't practicing rhythm. */
 export const QUARTERS = (beats: number): RhythmPattern => ({ beats, notes: Array.from({ length: beats }, () => ({ dur: 1 as Dur })) });
 
 /** Single-staff phrase: one bar per rhythm pattern, each note drawn from `next`. */

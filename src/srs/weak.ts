@@ -14,7 +14,7 @@ const DAY = 86_400_000;
 
 /** Sight-reading record for one card (note, chord, or two-handed shape). */
 export interface SightStat {
-  /** The card itself, kept so phrases transposed into keys can be practised again. */
+  /** The card itself, kept so phrases transposed into keys can be practiced again. */
   card: Card;
   /** Most recent attempts, oldest first: 1 = missed, 0 = right. */
   recent: number[];
@@ -115,7 +115,7 @@ export interface Focus {
 
 /**
  * The key to write a focused phrase in: one of the focus items' keys, chosen in proportion to how many items
- * use it, so a weak F♯ in G major is practised in G major.
+ * use it, so a weak F♯ in G major is practiced in G major.
  */
 export function focusKey(cards: Card[], rnd: () => number = Math.random): string {
   const counts = new Map<string, number>();

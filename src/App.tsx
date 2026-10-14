@@ -208,7 +208,7 @@ export function App() {
           <WorkOn
             data={data}
             update={update}
-            onPractise={(f) => {
+            onPractice={(f) => {
               setFocus(f);
               setTab('Sight-read');
             }}

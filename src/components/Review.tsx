@@ -302,7 +302,7 @@ export function Review({ data, update, onNavigate }: Props) {
         {Number.isFinite(nextDue) && <p className="muted">Next card due in {formatDelay(Math.max(0, nextDue - Date.now()))}.</p>}
         <div className="row" style={{ justifyContent: 'center' }}>
           <button className="primary" onClick={() => onNavigate('Sight-read')}>
-            Practise sight-reading
+            Practice sight-reading
           </button>
           <button onClick={showNext}>Check again</button>
         </div>
@@ -339,7 +339,7 @@ export function Review({ data, update, onNavigate }: Props) {
     ) : phase === 'correct' ? (
       <>✓ {pick.card.rhythm ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`}</>
     ) : pick.card.rhythm ? (
-      <>✗ Not quite: {detail}. Continue, or tap any key to practise it again.</>
+      <>✗ Not quite: {detail}. Continue, or tap any key to practice it again.</>
     ) : (
       <>
         ✗ You played {wrongNotes.map(midiName).join(', ')}, it's <b>{cardLabel(pick.card)}</b>. Play it to continue.

@@ -35,7 +35,7 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   shared by id between decks and the course, so a note learned in one counts in the other.
 - **Things to work on**: notes you often misread in sight-reading (3+ misses in your last 10 attempts, with the keys you
   tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).
-  *Practise* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and
+  *Practice* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and
   rhythm, mixed with notes you know. Forgotten cards can also be brought back for review today.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
@@ -63,7 +63,7 @@ Firefox supports it with a permission prompt; Safari/iOS doesn't support it at a
 ## First test with your piano
 
 Each deck group on the **Decks** page starts with a small *Test deck*, and **Lessons** has a three-unit *Test course*. Their
-cards have their own progress (ids starting with `test:`), so practising them never touches your real cards; use *reset* to
+cards have their own progress (ids starting with `test:`), so practicing them never touches your real cards; use *reset* to
 start a test again. A quick run-through:
 
 1. Plug the piano in (USB, or USB-OTG on Android), open the app in Chrome, allow MIDI. The sidebar should show the device name.

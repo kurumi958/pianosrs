@@ -32,10 +32,18 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   (Faber's Adult Piano Adventures All-in-One Book 1, Units 2–16: first staff notes → bass C-D-E → treble spaces → G position →
   sharps and flats → intervals → scales → primary chords in C and G, with the G major key signature). The next unit opens once
   80% of the current one has graduated; you can start at any unit (earlier units count as already known) or open the next unit early.
+  A second course, *late beginner to intermediate*, carries on from there in 20 units: notes around middle C, eighth rests,
+  F major, naturals, D major, A minor (each key with its notes, a hand position and its primary chords), 2nds/6ths/7ths,
+  triad inversions, sixteenths, 6/8, E and D minor, B♭ and E♭, major and minor triads, seventh chords, triplets and
+  syncopation, ledger lines further out, A/E/A♭ major, every key signature, cut time, melodic minor and E♯/B♯/C♭/F♭.
 - **Nothing is studied by default**: on first launch you choose between starting the course and picking decks yourself.
-- **Topic decks**: treble and bass clef notes on the staff, ledger lines, sharps and flats, intervals and triads, plus grand-staff
+- **Topic decks**, each labelled *beginner*, *intermediate* or *advanced* (the Decks page filters by level) and listed in
+  learning order within their group: landmark notes, treble and bass clef notes on the staff, ledger lines (out to C7 and
+  F1), sharps and flats (and E♯, B♯, C♭, F♭), intervals (3rds–octaves, then 2nds, 6ths and 7ths), triads, inversions, every
+  major and minor triad spelled with accidentals, dominant seventh chords, key-signature naturals, melodic minor's raised
+  6th, eighth and sixteenth rests, plus grand-staff
   decks: *which staff?* (single notes on either staff, middle C on both), *hands together* (one note per hand in C and G
-  position) and *bass note + chord*, and key signatures: *name the key* (a signature on its own; play the major tonic in any
+  position), *more hand positions* (middle C, F, D and A minor positions), *two notes in each hand* and *bass note + chord*, and key signatures: *name the key* (a signature on its own; play the major tonic in any
   octave) and *reading in sharp / flat keys* (the notes a signature alters, key by key up to six sharps or flats), and minor
   keys: *name the key* (the same signatures read as minor) and *the raised 7th* (harmonic minor's leading tone, which the
   signature doesn't show). Cards are
@@ -133,7 +141,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/srs/memory.ts` | Rebuilds FSRS memory from review history; reschedules after settings change |
 | `src/srs/cards.ts` | Card model (staff, key, notes per hand) and builders |
 | `src/srs/deck.ts` | Topic decks, course registry, shared card lookup |
-| `src/srs/course.ts` | The adult beginner course, unit by unit |
+| `src/srs/course.ts` | The two courses, unit by unit |
+| `src/srs/generators.ts` | Card builders shared by decks and courses (notes in keys, spelled chords, hand positions, rhythms) |
 | `src/srs/study.ts` | Course unlocking and which cards are available to study / read |
 | `src/srs/session.ts` | Picks the next card (learning → reviews → new → learn-ahead) |
 | `src/srs/grading.ts` | Turns correctness + reaction time into a grade |
@@ -161,6 +170,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Per-deck scheduling presets, leeches and suspending cards
 - A larger corpus of included songs: more classical works (Bach, Clementi, Mozart, Schumann, Burgmüller, Chopin…)
 - PDF transcription: key and time signature changes within a piece; repeat signs and endings
+- PDF transcription: try *Look closer* (the zoom tool) on the Pavane with a real API key, to measure its accuracy and cost per
+  page outside the subagent test
 - Imported songs: include them in *Export backup* (today they live only in the browser that imported them)
 - Judging note lengths (releases), not just onsets; pedalling
 - Songs: playing repeats and voltas as performed; a bigger CC0 corpus (OpenScore, Mutopia); looping a passage while

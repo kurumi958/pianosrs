@@ -2001,3 +2001,52 @@ button.bar-cell:hover {
   width: 100%;
   font: 0.82rem var(--mono);
 }
+
+/* Deck levels. */
+.level-filter {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+.level-filter button {
+  padding: 4px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--sheet);
+  font: 500 0.85rem var(--sans);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.level-filter button:hover {
+  border-color: var(--crown);
+}
+.level-filter button.on {
+  background: var(--crown);
+  border-color: var(--crown);
+  color: var(--crown-ink);
+}
+.level-tag {
+  display: inline-block;
+  margin-left: 8px;
+  padding: 0 7px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  vertical-align: 2px;
+  border: 1px solid var(--line-strong);
+  color: var(--muted);
+}
+.level-tag.beginner {
+  color: var(--sage);
+  border-color: currentColor;
+}
+.level-tag.intermediate {
+  color: var(--gold);
+  border-color: currentColor;
+}
+.level-tag.advanced {
+  color: var(--crown);
+  border-color: currentColor;
+}

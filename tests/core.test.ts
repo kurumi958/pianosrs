@@ -866,3 +866,35 @@ describe('grading', () => {
     expect(autoGrade(true, 2800, 3, g)).toBe(4);
   });
 });
+
+describe('curriculum', () => {
+  const ids = (id: string) => deckCards(id).map((c) => c.id);
+  it('labels every real topic deck with a level', () => {
+    for (const d of DECKS.filter((d) => d.kind === 'topic' && !d.id.startsWith('test-'))) expect(d.level, d.id).toBeDefined();
+  });
+  it('spells chords with their sharps and flats', () => {
+    expect(ids('major-minor-triads')).toEqual(expect.arrayContaining(['treble:D4+F#4+A4', 'treble:C4+Eb4+G4', 'bass:F#3+A#3+C#4']));
+    expect(ids('major-minor-triads')).toHaveLength(48);
+    expect(ids('seventh-chords')).toEqual(expect.arrayContaining(['treble:G4+B4+D5+F5', 'bass:A2+C#3+E3+G3', 'grand:|B2+F3+G3']));
+  });
+  it('writes key-signature notes, naturals, raised 6ths and inversions', () => {
+    expect(ids('key-naturals')).toContain('grand[G]:F4|');
+    expect(ids('minor-melodic')).toEqual(expect.arrayContaining(['grand[Am]:F#4|', 'grand[Cm]:A4|', 'grand[Dm]:B4|']));
+    expect(ids('treble-inversions')).toEqual(expect.arrayContaining(['treble:E4+G4+C5', 'treble:G4+C5+E5']));
+    expect(ids('unusual-accidentals')).toEqual(expect.arrayContaining(['treble:E#4', 'bass:Cb3']));
+  });
+  it('plays hand positions in their key, never both thumbs on one key', () => {
+    expect(ids('grand-positions')).toContain('grand[F]:Bb4|F3');
+    expect(ids('grand-positions')).toContain('grand[D]:F#4|D3');
+    expect(ids('grand-positions')).not.toContain('grand:C4|C4');
+    for (const c of deckCards('grand-positions')) expect(new Set(c.notes.map(toMidi)).size).toBe(c.notes.length);
+  });
+  it('has an intermediate course of 20 units with no card twice, naming every key by the end', () => {
+    const course = COURSES.find((c) => c.id === 'course-intermediate')!;
+    expect(course.units).toHaveLength(20);
+    const all = course.cards.map((c) => c.id);
+    expect(new Set(all).size).toBe(all.length);
+    const keys = all.filter((id) => id.startsWith('keysig:')).map((id) => id.slice(7));
+    expect(keys).toHaveLength(30);
+  });
+});

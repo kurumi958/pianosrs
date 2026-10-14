@@ -1,5 +1,5 @@
-import { ArrowLeft, Play, Upload } from 'lucide-react';
-import { lazy, Suspense, useRef, useState } from 'react';
+import { ArrowLeft, ChevronRight, Play, Search, Upload } from 'lucide-react';
+import { lazy, Suspense, useEffect, useRef, useState } from 'react';
 import { keyLabel } from '../music/notes';
 import { meterName } from '../music/rhythm';
 import { readScoreFile } from '../songs/musicxml';
@@ -8,8 +8,14 @@ import { isPdf } from '../songs/pdf';
 const PdfTranscriber = lazy(() => import('./PdfTranscriber').then((m) => ({ default: m.PdfTranscriber })));
 import {
   allSongs,
+  CORPUS_SONGS,
+  corpusEntries,
+  type CorpusEntry,
+  corpusEntry,
   DEFAULT_SONG_OPTIONS,
+  ensureSong,
   importSong,
+  type Level,
   LEVEL_LABEL,
   removeImportedSong,
   type Song,
@@ -73,6 +79,21 @@ export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryCha
     pdf?: Uint8Array | null;
   } | null>(null);
   const song = openSong ? songById(openSong) : undefined;
+  // A piece from the larger corpus loads its notes when it's opened.
+  const [failed, setFailed] = useState<string | null>(null);
+  const pending = openSong && !song && corpusEntry(openSong) ? openSong : null;
+  useEffect(() => {
+    if (!pending) return;
+    let live = true;
+    ensureSong(pending).then((s) => {
+      if (!live) return;
+      if (s) onLibraryChange();
+      else setFailed(pending);
+    });
+    return () => {
+      live = false;
+    };
+  }, [pending, onLibraryChange]);
   if (transcribe) {
     const editing = transcribe.songId ? songById(transcribe.songId) : undefined;
     return (
@@ -91,6 +112,15 @@ export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryCha
       </Suspense>
     );
   }
+  if (pending)
+    return (
+      <div className="page-inner song-page">
+        <button className="small link back" onClick={() => onOpen(null)}>
+          <ArrowLeft size={15} /> All songs
+        </button>
+        <p className="muted">{failed === pending ? `Couldn't load ${corpusEntry(pending)!.title}.` : `Opening ${corpusEntry(pending)!.title}…`}</p>
+      </div>
+    );
   if (song)
     return (
       <SongPage
@@ -121,9 +151,27 @@ function SongList({
   const file = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [level, setLevel] = useState<Level | 'all'>('all');
+  const [query, setQuery] = useState('');
   const songs = allSongs();
-  const builtIn = songs.filter((s) => s.source === 'corpus');
   const mine = songs.filter((s) => s.source === 'imported');
+  const q = query.trim().toLowerCase();
+  const filtering = level !== 'all' || !!q;
+  const matches = (x: { title: string; composer: string; level?: Level; collection?: string }) =>
+    (level === 'all' || x.level === level) && (!q || `${x.title} ${x.composer} ${x.collection ?? ''}`.toLowerCase().includes(q));
+  const firstPieces = CORPUS_SONGS.filter(matches);
+  const isStudied = (id: string) => data.settings.enabledDecks.includes(songDeckId(id));
+  // The larger corpus, by collection, in the order of the index.
+  const groups: { title: string; composer?: string; entries: CorpusEntry[] }[] = [];
+  for (const e of corpusEntries().filter(matches)) {
+    let g = groups.find((x) => x.title === e.collection);
+    if (!g) groups.push((g = { title: e.collection, entries: [] }));
+    g.entries.push(e);
+  }
+  for (const g of groups) {
+    const composers = new Set(g.entries.map((e) => e.composer));
+    if (composers.size === 1 && !g.title.includes(g.entries[0].composer.split(' ').pop()!)) g.composer = g.entries[0].composer;
+  }
 
   const onFile = async (f: File | undefined) => {
     if (!f) return;
@@ -142,6 +190,27 @@ function SongList({
       setBusy(false);
       if (file.current) file.current.value = '';
     }
+  };
+
+  const entryRow = (e: CorpusEntry) => {
+    const loaded = songById(e.id);
+    if (loaded) return row(loaded);
+    return (
+      <li key={e.id}>
+        <button className="song-card" onClick={() => onOpen(e.id)}>
+          <span className="song-text">
+            <b>{e.title}</b>
+            <small>{e.composer}</small>
+            <small className="muted">
+              {e.key} · {e.meter} · {e.bars} bars
+            </small>
+          </span>
+          <span className="song-meta">
+            <span className={`level l${e.level}`}>{LEVEL_LABEL[e.level]}</span>
+          </span>
+        </button>
+      </li>
+    );
   };
 
   const row = (s: Song) => {
@@ -176,8 +245,43 @@ function SongList({
 
       <section className="panel">
         <h3>Included songs</h3>
-        <p className="muted small">Public-domain music, from first pieces to intermediate. Excerpts and arrangements say so.</p>
-        <ul className="song-list">{builtIn.map(row)}</ul>
+        <p className="muted small">
+          Public-domain music, from first pieces to advanced: short arrangements to start with, then complete classical pieces engraved by
+          the Mutopia Project.
+        </p>
+        <div className="song-filters">
+          <div className="level-filter" role="radiogroup" aria-label="Level">
+            {(['all', 1, 2, 3, 4, 5] as const).map((l) => (
+              <button key={l} role="radio" aria-checked={level === l} className={level === l ? 'on' : ''} onClick={() => setLevel(l)}>
+                {l === 'all' ? 'All levels' : LEVEL_LABEL[l]}
+              </button>
+            ))}
+          </div>
+          <label className="song-search">
+            <Search size={15} />
+            <input type="search" placeholder="Search title or composer" value={query} onChange={(e) => setQuery(e.target.value)} />
+          </label>
+        </div>
+        {firstPieces.length > 0 && (
+          <>
+            <h4 className="song-group-title">First pieces</h4>
+            <ul className="song-list">{firstPieces.map(row)}</ul>
+          </>
+        )}
+        {groups.map((g) => (
+          <details key={g.title} className="song-group" open={filtering || g.entries.some((e) => isStudied(e.id))}>
+            <summary>
+              <ChevronRight size={16} className="chev" />
+              <span>
+                <b>{g.title}</b>
+                {g.composer && <small className="muted"> · {g.composer}</small>}
+              </span>
+              <small className="muted">{g.entries.length === 1 ? '1 piece' : `${g.entries.length} pieces`}</small>
+            </summary>
+            <ul className="song-list">{g.entries.map(entryRow)}</ul>
+          </details>
+        ))}
+        {!firstPieces.length && !groups.length && <p className="muted">No songs match.</p>}
       </section>
 
       <section className="panel">
@@ -226,6 +330,7 @@ function SongPage({
   onEditTranscription: () => void;
 }) {
   const deckId = songDeckId(song.id);
+  const entry = corpusEntry(song.id);
   const learning = data.settings.enabledDecks.includes(deckId);
   const opts = data.songs[song.id] ?? DEFAULT_SONG_OPTIONS;
   const cards = songCards(song, opts);
@@ -281,6 +386,15 @@ function SongPage({
           {song.level ? ` · ${LEVEL_LABEL[song.level]}` : ''} · {summary(song)}
         </p>
         {song.about && <p className="muted">{song.about}</p>}
+        {entry && (
+          <p className="muted small">
+            {entry.collection} · Engraved by the{' '}
+            <a href={entry.source} target="_blank" rel="noreferrer">
+              Mutopia Project
+            </a>{' '}
+            ({entry.license}); converted for PianoSRS without repeat signs, dynamics or ornaments.
+          </p>
+        )}
       </header>
 
       <section className="panel stack">

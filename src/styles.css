@@ -96,6 +96,10 @@ body {
   -webkit-tap-highlight-color: transparent;
   overflow: hidden;
 }
+a {
+  color: var(--crown);
+  text-underline-offset: 2px;
+}
 h1,
 h2,
 h3 {
@@ -2433,4 +2437,79 @@ button.bar-cell:hover {
 
 .block {
   display: block;
+}
+
+/* Songs: the larger corpus, by level and collection. */
+.level.l4 {
+  background: color-mix(in srgb, var(--crown) 22%, transparent);
+  color: var(--crown);
+}
+.level.l5 {
+  background: var(--ink);
+  color: var(--sheet);
+}
+.song-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px 16px;
+  margin-top: 12px;
+}
+.song-filters .level-filter {
+  margin-bottom: 0;
+}
+.song-search {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--muted);
+}
+.song-search input {
+  border: 0;
+  outline: 0;
+  background: transparent;
+  font: inherit;
+  color: var(--ink);
+  width: 200px;
+  max-width: 50vw;
+}
+.song-group-title {
+  margin: 18px 0 0;
+  font-family: var(--display);
+  font-size: 1.05rem;
+}
+.song-group {
+  margin-top: 12px;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.song-group summary {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  cursor: pointer;
+  list-style: none;
+}
+.song-group summary::-webkit-details-marker {
+  display: none;
+}
+.song-group summary > span {
+  flex: 1;
+}
+.song-group summary b {
+  font-family: var(--display);
+  font-size: 1.05rem;
+}
+.song-group summary .chev {
+  align-self: center;
+  transition: transform 0.15s;
+  color: var(--muted);
+}
+.song-group[open] summary .chev {
+  transform: rotate(90deg);
 }

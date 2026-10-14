@@ -71,9 +71,14 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).
   *Practice* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and
   rhythm, mixed with notes you know. Forgotten cards can also be brought back for review today.
-- **Songs**: learn real pieces a few bars at a time. Nine public-domain songs are included, from *Mary Had a Little Lamb*
-  and *Ode to Joy* through the *Minuet in G*, *Greensleeves*, *Für Elise*, *Gymnopédie No. 1*, Bach's *Prelude in C* and the
-  opening of the *Moonlight Sonata* (excerpts and simplified arrangements say so), and you can import any score as MusicXML
+- **Songs**: learn real pieces a few bars at a time. Nine short public-domain first pieces are included, from *Mary Had a
+  Little Lamb* and *Ode to Joy* through the *Minuet in G*, *Greensleeves*, *Für Elise*, *Gymnopédie No. 1*, Bach's *Prelude
+  in C* and the opening of the *Moonlight Sonata* (excerpts and simplified arrangements say so), plus 190 complete classical
+  pieces from beginner to advanced, by collection: Bach (the Anna Magdalena notebook, Little Preludes, the Two-Part
+  Inventions, preludes and fugues from the Well-Tempered Clavier), Clementi, Czerny, all of Burgmüller's Op. 100 up to No. 18,
+  Schumann's *Album for the Young* and *Scenes from Childhood*, Tchaikovsky, Mozart, Beethoven, Kuhlau, Haydn, Handel,
+  Chopin's Preludes, Satie and Grieg. Filter them by level or search; a piece's notes load when you open or study it. You
+  can also import any score as MusicXML
   (.musicxml, .xml or compressed .mxl, as exported by MuseScore, Sibelius, Finale or Dorico, or downloaded from MuseScore.com or
   IMSLP). Scores are engraved with [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org/). *Learn this song* turns it into
   passage flash cards in Review: each passage (1, 2, 4 or 8 bars) right hand, left hand, then hands together, then joined to
@@ -199,8 +204,10 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/music/phrase.ts` | Sight-reading phrases (single staff or two-handed), events to play, accidentals |
 | `src/songs/musicxml.ts` | Reads MusicXML (and .mxl) into notes with bars, timing, staves and ties |
 | `src/songs/dsl.ts` | The compact notation the included songs are written in, compiled to the score model and MusicXML |
-| `src/songs/corpus.ts` | The included songs |
-| `src/songs/library.ts` | Song library (included + imported in IndexedDB) and song decks of passage cards |
+| `src/songs/corpus.ts` | The nine first pieces |
+| `src/songs/library.ts` | Song library (first pieces, the classical corpus loaded on demand, imported songs in IndexedDB) and song decks of passage cards |
+| `public/songs/` | The classical corpus: `index.json` and one compressed MusicXML file per piece |
+| `scripts/corpus/` | How the corpus is made from the Mutopia Project's LilyPond files (see below) |
 | `src/songs/pdf.ts` | Opens PDFs and renders pages, or enlarged regions of them (pdf.js) |
 | `src/songs/transcribe.ts` | Reads a page into the song notation with Claude, zooming in on request and sending back bars that don't add up |
 | `src/songs/play.ts` | Note colours while playing, tie chains, bars to work on |
@@ -211,18 +218,34 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
 - Optimising FSRS parameters from your own review history (today: paste them from Anki)
 - Per-deck scheduling presets, leeches and suspending cards
-- A larger corpus of included songs: more classical works (Bach, Clementi, Mozart, Schumann, Burgmüller, Chopin…)
 - PDF transcription: key and time signature changes within a piece; repeat signs and endings
 - PDF transcription: try *Look closer* (the zoom tool) on the Pavane with a real API key, to measure its accuracy and cost per
   page outside the subagent test
 - Imported songs: include them in *Export backup* (today they live only in the browser that imported them)
 - Judging note lengths (releases), not just onsets; pedalling
-- Songs: playing repeats and voltas as performed; a bigger CC0 corpus (OpenScore, Mutopia); looping a passage while
-  speeding it up
+- Songs: playing repeats and voltas as performed; dynamics, ornaments and fingering in the corpus (the converter leaves them
+  out); more pieces (tuplets other than triplets, and cadenzas, aren't converted yet); looping a passage while speeding it up
 - Cloud sync between devices
 - Desktop app: keep progress and imported songs in a data file (so backups include songs and PDFs), automatic
   backups, the API key in the system keychain, code signing and automatic updates
 - Native Android build with a MIDI bridge plugin (see above)
+
+## The classical corpus
+
+The pieces in `public/songs/` are the [Mutopia Project](https://www.mutopiaproject.org/)'s engravings, converted from
+LilyPond to MusicXML by `scripts/corpus/`: LilyPond itself interprets each score with a small listener (`listener.ly`) that
+writes out every note with its spelled pitch, written and actual length, tuplet, tie, staff, voice, clef, key and time
+signature; `events2xml.py` turns those into MusicXML; `scan.py` converts whole folders of the Mutopia archive and reports what
+came out; `pieces.py` lists the chosen pieces with titles, collections, levels and notes; and `build.py` writes the bundle.
+Every piece is checked by `tests/library.test.ts` with the app's own MusicXML reader.
+
+```sh
+pip install lilypond                      # LilyPond 2.25 from PyPI
+git clone --filter=blob:none --sparse https://github.com/MutopiaProject/MutopiaProject mutopia
+(cd mutopia && git sparse-checkout set ftp/BachJS ftp/BurgmullerJFF ...)
+python3 scripts/corpus/scan.py mutopia <lilypond bin dir> work BachJS/BWV772 BurgmullerJFF ...
+python3 scripts/corpus/build.py mutopia work public/songs
+```
 
 ## Credits
 
@@ -230,3 +253,7 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
   (Yamaha C5), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The MP3s come from
   [@audio-samples/piano-mp3](https://github.com/darosh/samples-piano-mp3) (velocity layers 2, 4, … 16), trimmed to 9 seconds
   with a 2-second fade and re-encoded at 96 kbps.
+- Classical corpus: engraved by the volunteers of the [Mutopia Project](https://www.mutopiaproject.org/), each piece in the
+  public domain or under a Creative Commons licence (CC BY 3.0, or CC BY-SA 2.5, 3.0 or 4.0) as `public/songs/index.json`
+  records along with its Mutopia page, shown on the piece's page in the app. The converted files are shared under the same
+  terms.

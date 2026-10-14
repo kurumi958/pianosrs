@@ -18,7 +18,7 @@ import { Setup } from './components/Setup';
 import type { Focus } from './srs/weak';
 import { type SongFocus, Songs } from './components/Songs';
 import { SongPractice } from './components/SongPlay';
-import { loadImportedSongs, songById, syncSongDecks } from './songs/library';
+import { corpusEntry, ensureSong, loadCorpusIndex, loadImportedSongs, songById, syncSongDecks } from './songs/library';
 import { syncCustomDecks } from './srs/custom';
 import { type LearnPlan, LearnSession } from './components/LearnSession';
 
@@ -133,6 +133,20 @@ export function App() {
   useEffect(() => {
     loadImportedSongs().then(libraryChanged);
   }, [libraryChanged]);
+  // The larger corpus: its index at start-up, then the notes of every piece you study, so its cards can come up.
+  const [corpusReady, setCorpusReady] = useState(false);
+  useEffect(() => {
+    loadCorpusIndex().then(() => setCorpusReady(true));
+  }, []);
+  const studiedSongs = data.settings.enabledDecks.filter((d) => d.startsWith('song:')).join(',');
+  useEffect(() => {
+    if (!corpusReady) return;
+    const ids = studiedSongs
+      .split(',')
+      .map((d) => d.slice('song:'.length))
+      .filter((id) => id && !songById(id) && corpusEntry(id));
+    if (ids.length) Promise.all(ids.map(ensureSong)).then(libraryChanged);
+  }, [corpusReady, studiedSongs, libraryChanged]);
   syncSongDecks(data.songs);
   syncCustomDecks(data.customDecks);
   const [openSong, setOpenSong] = useState<string | null>(null);

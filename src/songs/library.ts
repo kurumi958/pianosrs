@@ -2,15 +2,15 @@ import { makePassageCard, type Card } from '../srs/cards';
 import { type DeckDef, setSongDecks } from '../srs/deck';
 import { CORPUS } from './corpus';
 import { compileSong, type SongSource } from './dsl';
-import { parseMusicXML } from './musicxml';
+import { parseMusicXML, readScoreFile } from './musicxml';
 import { barsLabel, type Hands, handPlays, type Score } from './score';
 
 export interface Song {
   id: string;
   title: string;
   composer: string;
-  /** 1 beginner, 2 early intermediate, 3 intermediate (built-in songs only). */
-  level?: 1 | 2 | 3;
+  /** 1 beginner to 5 advanced (built-in songs only). */
+  level?: Level;
   about?: string;
   source: 'corpus' | 'imported';
   xml: string;
@@ -35,23 +35,99 @@ export interface SongOptions {
 
 export const DEFAULT_SONG_OPTIONS: SongOptions = { bars: 2, separateHands: true };
 
-export const LEVEL_LABEL = { 1: 'Beginner', 2: 'Early intermediate', 3: 'Intermediate' } as const;
+/** Roughly ABRSM/RCM grades 1–2, 3–4, 5–6, 7–8, and beyond. */
+export type Level = 1 | 2 | 3 | 4 | 5;
+export const LEVEL_LABEL = { 1: 'Beginner', 2: 'Early intermediate', 3: 'Intermediate', 4: 'Late intermediate', 5: 'Advanced' } as const;
 
 export const CORPUS_SONGS: Song[] = CORPUS.map((src) => {
   const { score, xml } = compileSong(src);
   return { id: src.id, title: src.title, composer: src.composer, level: src.level, about: src.about, source: 'corpus', xml, score };
 });
 
+/**
+ * The larger corpus: public-domain pieces engraved by the Mutopia Project, converted to MusicXML (scripts/corpus/).
+ * Its index (public/songs/index.json) loads at start-up; a piece's notes (public/songs/<id>.mxl) load when it's
+ * opened or studied.
+ */
+export interface CorpusEntry {
+  id: string;
+  title: string;
+  composer: string;
+  /** The collection it's from, e.g. "25 Easy and Progressive Studies, Op. 100". */
+  collection: string;
+  level: Level;
+  about: string;
+  key: string;
+  meter: string;
+  bars: number;
+  /** The engraving's licence, and where it came from. */
+  license: string;
+  source: string;
+  file: string;
+}
+
+let corpusIndex: CorpusEntry[] = [];
+const corpusSongs = new Map<string, Song>();
+const corpusLoading = new Map<string, Promise<Song | null>>();
+
+/** Fetch the corpus index (once). Without it (offline on first run), only the songs built into the app are listed. */
+export async function loadCorpusIndex(): Promise<void> {
+  if (corpusIndex.length) return;
+  try {
+    const res = await fetch(`${import.meta.env.BASE_URL}songs/index.json`);
+    if (res.ok) corpusIndex = (await res.json()) as CorpusEntry[];
+    libraryVersion++;
+  } catch {
+    // offline: the built-in songs are still there
+  }
+}
+
+export function corpusEntries(): CorpusEntry[] {
+  return corpusIndex;
+}
+
+export const corpusEntry = (id: string) => corpusIndex.find((e) => e.id === id);
+
+/** Load a corpus piece's notes (once). Resolves to the song, or null if it isn't in the corpus or can't be read. */
+export function ensureSong(id: string): Promise<Song | null> {
+  const ready = songById(id);
+  if (ready) return Promise.resolve(ready);
+  const entry = corpusEntry(id);
+  if (!entry) return Promise.resolve(null);
+  let p = corpusLoading.get(id);
+  if (!p) {
+    p = (async () => {
+      try {
+        const res = await fetch(`${import.meta.env.BASE_URL}songs/${entry.file}`);
+        if (!res.ok) return null;
+        const xml = readScoreFile(new Uint8Array(await res.arrayBuffer()));
+        const score = parseMusicXML(xml);
+        const song: Song = { id, title: entry.title, composer: entry.composer, level: entry.level, about: entry.about, source: 'corpus', xml, score };
+        corpusSongs.set(id, song);
+        libraryVersion++;
+        return song;
+      } catch {
+        return null;
+      } finally {
+        corpusLoading.delete(id);
+      }
+    })();
+    corpusLoading.set(id, p);
+  }
+  return p;
+}
+
 const imported = new Map<string, Song>();
 /** Bumped whenever an imported song is added, changed or removed, so decks rebuild. */
 let libraryVersion = 0;
 
+/** Songs whose notes are loaded: the built-in ones, corpus pieces opened or studied, and imported ones. */
 export function allSongs(): Song[] {
-  return [...CORPUS_SONGS, ...[...imported.values()].sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0))];
+  return [...CORPUS_SONGS, ...corpusSongs.values(), ...[...imported.values()].sort((a, b) => (a.addedAt ?? 0) - (b.addedAt ?? 0))];
 }
 
 export function songById(id: string): Song | undefined {
-  return CORPUS_SONGS.find((s) => s.id === id) ?? imported.get(id);
+  return CORPUS_SONGS.find((s) => s.id === id) ?? corpusSongs.get(id) ?? imported.get(id);
 }
 
 export const songDeckId = (songId: string) => `song:${songId}`;

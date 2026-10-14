@@ -3,7 +3,18 @@ import { accidentalInKey, KEY_SIGNATURES, midiName, parsePitch, toMidi, vexKey }
 import { withKey } from '../src/srs/cards';
 import { cardsInKey, courseProgress, knownCards, learnedKeys, phraseRhythms, studyCards } from '../src/srs/study';
 import type { CardState } from '../src/srs/scheduler';
-import { DEFAULT_SCHEDULER as cfg, newCardState, schedule } from '../src/srs/scheduler';
+import {
+  DEFAULT_SCHEDULER,
+  formatDelay,
+  fsrsInterval,
+  memoryFromHistory,
+  newCardState,
+  parseSteps,
+  schedule,
+  type SchedulerConfig,
+} from '../src/srs/scheduler';
+import { fillFsrsMemory, needsFsrsMemory } from '../src/srs/memory';
+import { dayKey, emptyData, nextDayStart, normalize, setDayStartHour } from '../src/storage';
 import { ALL_CARDS, CARD_BY_ID, cardLabel, DECK_GROUPS, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
@@ -40,38 +51,158 @@ describe('notes', () => {
   });
 });
 
-describe('scheduler', () => {
+// SM-2 exactly as before FSRS became the default: no fuzz, "new interval" 0.5, 365-day cap.
+const sm2: SchedulerConfig = { ...DEFAULT_SCHEDULER, algorithm: 'sm2', fuzz: false, lapseMultiplier: 0.5, maxIntervalDays: 365 };
+const fsrsCfg: SchedulerConfig = { ...DEFAULT_SCHEDULER, fuzz: false };
+
+describe('SM-2 scheduler', () => {
   const now = 1_000_000_000_000;
   it('moves a new card through learning steps to review', () => {
-    let c = schedule(newCardState('x'), 3, now);
+    let c = schedule(newCardState('x'), 3, now, sm2);
     expect(c.status).toBe('learning');
     expect(c.due).toBe(now + 10 * MIN);
-    c = schedule(c, 3, c.due);
+    c = schedule(c, 3, c.due, sm2);
     expect(c.status).toBe('review');
     expect(c.interval).toBe(1);
   });
   it('graduates immediately on Easy', () => {
-    const c = schedule(newCardState('x'), 4, now);
+    const c = schedule(newCardState('x'), 4, now, sm2);
     expect(c.status).toBe('review');
-    expect(c.interval).toBe(cfg.easyIntervalDays);
+    expect(c.interval).toBe(sm2.easyIntervalDays);
   });
   it('grows intervals with ease and lapses on Again', () => {
     const base = { ...newCardState('x'), status: 'review' as const, interval: 10, due: now };
-    expect(schedule(base, 3, now).interval).toBe(25);
-    expect(schedule(base, 2, now).interval).toBe(12);
-    expect(schedule(base, 4, now).interval).toBe(Math.round(10 * 2.65 * 1.3));
-    const lapsed = schedule(base, 1, now);
+    expect(schedule(base, 3, now, sm2).interval).toBe(25);
+    expect(schedule(base, 2, now, sm2).interval).toBe(12);
+    expect(schedule(base, 4, now, sm2).interval).toBe(Math.round(10 * 2.65 * 1.3));
+    const lapsed = schedule(base, 1, now, sm2);
     expect(lapsed.status).toBe('relearning');
     expect(lapsed.lapses).toBe(1);
     expect(lapsed.ease).toBeCloseTo(2.3);
-    const back = schedule(lapsed, 3, lapsed.due);
+    const back = schedule(lapsed, 3, lapsed.due, sm2);
     expect(back.status).toBe('review');
     expect(back.interval).toBe(5);
     expect(back.due).toBe(lapsed.due + 5 * DAY);
   });
-  it('never drops ease below the minimum', () => {
-    const c = schedule({ ...newCardState('x'), status: 'review', interval: 3, ease: 1.35 }, 2, now);
-    expect(c.ease).toBe(cfg.minEase);
+  it('never drops ease below 1.3', () => {
+    const c = schedule({ ...newCardState('x'), status: 'review', interval: 3, ease: 1.35 }, 2, now, sm2);
+    expect(c.ease).toBe(1.3);
+  });
+  it('applies the interval modifier and custom steps', () => {
+    const base = { ...newCardState('x'), status: 'review' as const, interval: 10, due: now };
+    expect(schedule(base, 3, now, { ...sm2, intervalModifier: 0.8 }).interval).toBe(20);
+    const c = schedule(newCardState('x'), 3, now, { ...sm2, learningSteps: '5m 1h 1d' });
+    expect(c.due).toBe(now + 60 * MIN);
+    // No relearning steps: a lapse goes straight back to review.
+    expect(schedule(base, 1, now, { ...sm2, relearningSteps: '' }).status).toBe('review');
+  });
+  it('fuzzes longer intervals a little', () => {
+    const base = { ...newCardState('x'), status: 'review' as const, interval: 40, due: now };
+    const seen = new Set(Array.from({ length: 30 }, () => schedule(base, 3, now, { ...sm2, fuzz: true }).interval));
+    expect(seen.size).toBeGreaterThan(1);
+    for (const i of seen) expect(Math.abs(i - 100)).toBeLessThanOrEqual(8); // about ±7% at this length, as in Anki
+  });
+});
+
+describe('FSRS scheduler', () => {
+  const now = 1_000_000_000_000;
+  it('uses learning steps for new cards, then graduates with a memory', () => {
+    let c = schedule(newCardState('x'), 3, now, fsrsCfg);
+    expect(c.status).toBe('learning');
+    expect(c.due).toBe(now + 10 * MIN);
+    expect(c.stability).toBeGreaterThan(0);
+    expect(schedule(newCardState('x'), 1, now, fsrsCfg).due).toBe(now + MIN);
+    c = schedule(c, 3, c.due, fsrsCfg);
+    expect(c.status).toBe('review');
+    expect(c.interval).toBeGreaterThanOrEqual(1);
+  });
+  it('spaces reviews further apart each time you remember', () => {
+    let c = schedule(newCardState('x'), 4, now, fsrsCfg);
+    const intervals = [c.interval];
+    for (let i = 0; i < 3; i++) {
+      c = schedule(c, 3, c.due, fsrsCfg);
+      intervals.push(c.interval);
+    }
+    for (let i = 1; i < intervals.length; i++) expect(intervals[i]).toBeGreaterThan(intervals[i - 1]);
+  });
+  it('relearns a forgotten card and lowers its stability', () => {
+    const learned = schedule(schedule(newCardState('x'), 4, now, fsrsCfg), 3, now + 4 * DAY, fsrsCfg);
+    const lapsed = schedule(learned, 1, learned.due, fsrsCfg);
+    expect(lapsed.status).toBe('relearning');
+    expect(lapsed.lapses).toBe(1);
+    expect(lapsed.stability!).toBeLessThan(learned.stability!);
+  });
+  it('schedules sooner for a higher desired retention', () => {
+    expect(fsrsInterval(20, { ...fsrsCfg, desiredRetention: 0.95 })).toBeLessThan(fsrsInterval(20, fsrsCfg));
+    expect(fsrsInterval(20, { ...fsrsCfg, desiredRetention: 0.8 })).toBeGreaterThan(fsrsInterval(20, fsrsCfg));
+  });
+  it('takes over SM-2 cards, estimating memory when there is no history', () => {
+    const sm2Card = { ...newCardState('x'), status: 'review' as const, interval: 12, ease: 2.5, due: now, lastReview: now - 12 * DAY };
+    const next = schedule(sm2Card, 3, now, fsrsCfg);
+    expect(next.status).toBe('review');
+    expect(next.interval).toBeGreaterThan(12);
+  });
+  it('rebuilds memory from review history', () => {
+    const h = [
+      { t: now, grade: 3 as const },
+      { t: now + 10 * MIN, grade: 3 as const },
+      { t: now + 3 * DAY, grade: 3 as const },
+    ];
+    const mem = memoryFromHistory(h, fsrsCfg)!;
+    expect(mem.stability).toBeGreaterThan(3);
+    expect(memoryFromHistory([], fsrsCfg)).toBeNull();
+  });
+  it('fills in memory for every studied card, from the log or an estimate', () => {
+    const d = emptyData();
+    d.cards.a = { ...newCardState('a'), status: 'review', interval: 5 };
+    d.cards.b = { ...newCardState('b'), status: 'review', interval: 30, ease: 2.1 };
+    d.cards.c = newCardState('c');
+    d.log = [
+      { id: 'a', t: now, grade: 3, ms: 1000 },
+      { id: 'a', t: now + 600_000, grade: 3, ms: 1000 },
+    ];
+    expect(needsFsrsMemory(d)).toBe(true);
+    expect(fillFsrsMemory(d)).toBe(2);
+    expect(d.cards.a.stability).toBeCloseTo(memoryFromHistory([{ t: now, grade: 3 }, { t: now + 600_000, grade: 3 }], d.settings.srs)!.stability);
+    expect(d.cards.b.stability).toBe(30);
+    expect(d.cards.b.difficulty).toBeGreaterThan(5);
+    expect(d.cards.c.stability).toBeUndefined();
+    expect(needsFsrsMemory(d)).toBe(false);
+  });
+});
+
+describe('scheduling settings', () => {
+  it('formats intervals like Anki', () => {
+    expect(formatDelay(30 * 1000)).toBe('<1m');
+    expect(formatDelay(10 * MIN)).toBe('10m');
+    expect(formatDelay(3 * DAY)).toBe('3d');
+    expect(formatDelay(54 * DAY)).toBe('1.8mo');
+    expect(formatDelay(60 * DAY)).toBe('2mo');
+    expect(formatDelay(500 * DAY)).toBe('1.4y');
+  });
+  it('parses learning steps', () => {
+    expect(parseSteps('1m 10m')).toEqual([1, 10]);
+    expect(parseSteps(' 30m  2h 1d ')).toEqual([30, 120, 1440]);
+    expect(parseSteps('')).toEqual([]);
+    expect(parseSteps('10')).toBeNull();
+    expect(parseSteps('1x')).toBeNull();
+  });
+  it('starts a new day at the chosen hour', () => {
+    const at = (h: number) => new Date(2026, 9, 14, h, 30).getTime();
+    setDayStartHour(4);
+    expect(dayKey(at(3))).toBe('2026-10-13');
+    expect(dayKey(at(5))).toBe('2026-10-14');
+    setDayStartHour(0);
+    expect(dayKey(at(3))).toBe('2026-10-14');
+    expect(nextDayStart(at(23))).toBe(new Date(2026, 9, 15, 0, 0).getTime());
+    setDayStartHour(4);
+  });
+  it('fills in defaults for settings saved before scheduling options existed', () => {
+    const old = normalize({ version: 1, cards: {}, settings: { newPerDay: 5 } });
+    expect(old.settings.srs.algorithm).toBe('fsrs');
+    expect(old.settings.srs.desiredRetention).toBe(0.9);
+    expect(old.settings.newPerDay).toBe(5);
+    expect(old.reviewsByDay).toEqual({});
   });
 });
 
@@ -144,12 +275,19 @@ describe('session queue', () => {
     expect(pickNext({ cards, states: {}, now, newRemaining: 0 })).toBeNull();
   });
   it('prefers due cards over new ones and learns ahead at the end', () => {
-    const learning = schedule(newCardState(cards[1].id), 3, now - 20 * MIN);
+    const learning = schedule(newCardState(cards[1].id), 3, now - 20 * MIN, sm2);
     const states = { [cards[1].id]: learning };
     expect(pickNext({ cards, states, now, newRemaining: 5 })?.card.id).toBe(cards[1].id);
     const soon = { [cards[1].id]: { ...learning, due: now + 5 * MIN } };
     expect(pickNext({ cards, states: soon, now, newRemaining: 0 })?.card.id).toBe(cards[1].id);
     expect(countQueue({ cards, states, now, newRemaining: 5 })).toEqual({ newCount: 2, learning: 1, review: 0 });
+  });
+  it('stops showing reviews at the daily review limit', () => {
+    const due = { ...newCardState(cards[0].id), status: 'review' as const, interval: 3, due: now - 1000 };
+    const states = { [cards[0].id]: due };
+    expect(pickNext({ cards, states, now, newRemaining: 0, reviewRemaining: 1 })?.card.id).toBe(cards[0].id);
+    expect(pickNext({ cards, states, now, newRemaining: 0, reviewRemaining: 0 })).toBeNull();
+    expect(countQueue({ cards, states, now, newRemaining: 0, reviewRemaining: 0 }).review).toBe(0);
   });
 });
 

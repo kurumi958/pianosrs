@@ -1,6 +1,6 @@
 import { CARD_BY_ID, cardLabel, STAFF_LABEL } from '../srs/deck';
-import { GRADE_LABELS } from '../srs/scheduler';
-import { type AppData, dayKey } from '../storage';
+import { GRADE_LABELS, retrievability } from '../srs/scheduler';
+import { type AppData, dayKey, nextDayStart } from '../storage';
 
 const DAY = 86_400_000;
 
@@ -19,19 +19,24 @@ export function Stats({ data }: { data: AppData }) {
   const correctWeek = week.filter((l) => l.grade > 1).length;
   const avgMs = week.length ? week.reduce((a, l) => a + l.ms, 0) / week.length : 0;
 
-  const rollover = new Date(now);
-  rollover.setHours(4, 0, 0, 0); // days roll over at 4am
-  if (rollover.getTime() <= now) rollover.setDate(rollover.getDate() + 1);
+  const rollover = nextDayStart(now);
   const forecast = Array.from({ length: 7 }, (_, i) => {
-    const until = rollover.getTime() + i * DAY;
+    const until = rollover + i * DAY;
     return states.filter((s) => s.due < until && (i === 0 || s.due >= until - DAY)).length;
   });
   const maxF = Math.max(1, ...forecast);
 
+  const srs = data.settings.srs;
+  const fsrsOn = srs.algorithm === 'fsrs';
+  // Hardness: FSRS difficulty (1–10) when FSRS is on, otherwise how far ease has dropped.
+  const hardness = (s: (typeof states)[number]) => (fsrsOn ? (s.difficulty ?? 5) : 10 - s.ease * 2);
   const weakest = [...states]
-    .filter((s) => s.lapses > 0 || s.ease < 2.5)
-    .sort((a, b) => b.lapses - a.lapses || a.ease - b.ease)
+    .filter((s) => s.lapses > 0 || (fsrsOn ? (s.difficulty ?? 0) > 6 : s.ease < 2.5))
+    .sort((a, b) => b.lapses - a.lapses || hardness(b) - hardness(a))
     .slice(0, 10);
+  // FSRS: the average chance you'd remember a learned card right now.
+  const recalls = fsrsOn ? states.map((s) => retrievability(s, now, srs)).filter((r): r is number => r !== null) : [];
+  const recallNow = recalls.length ? recalls.reduce((a, r) => a + r, 0) / recalls.length : null;
 
   const gradeCounts = [1, 2, 3, 4].map((g) => todayLog.filter((l) => l.grade === g).length);
 
@@ -58,6 +63,12 @@ export function Stats({ data }: { data: AppData }) {
           <b>{states.length}</b>
           <span>cards learned</span>
         </div>
+        {recallNow !== null && (
+          <div className="stat" title="FSRS's estimate of how likely you are to remember a learned card if it came up right now">
+            <b>{Math.round(recallNow * 100)}%</b>
+            <span>predicted recall now</span>
+          </div>
+        )}
       </div>
 
       <section className="panel">
@@ -93,7 +104,8 @@ export function Stats({ data }: { data: AppData }) {
                 <li key={s.id}>
                   <b>{cardLabel(c)}</b>{' '}
                   <span className="muted">
-                    {STAFF_LABEL[c.staff]} · {s.lapses} lapses · ease {s.ease.toFixed(2)}
+                    {STAFF_LABEL[c.staff]} · {s.lapses} lapses ·{' '}
+                    {fsrsOn ? `difficulty ${(s.difficulty ?? 5).toFixed(1)}` : `ease ${s.ease.toFixed(2)}`}
                   </span>
                 </li>
               );

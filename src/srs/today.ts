@@ -5,6 +5,16 @@ import { courseProgress, studyCards } from './study';
 
 const DAY = 86_400_000;
 
+/** How many more new and review cards today's limits allow. */
+export function dailyLimits(data: AppData, now: number) {
+  const day = dayKey(now);
+  return {
+    newRemaining: data.settings.newPerDay - (data.newByDay[day] ?? 0),
+    reviewRemaining: data.settings.srs.maxReviewsPerDay - (data.reviewsByDay[day] ?? 0),
+    learnAheadMs: data.settings.srs.learnAheadMin * 60_000,
+  };
+}
+
 /** Days in a row with at least one review, ending today (or yesterday, if today hasn't started yet). */
 export function studyStreak(log: { t: number }[], now: number): number {
   const days = new Set(log.map((l) => dayKey(l.t)));
@@ -32,8 +42,7 @@ export interface CourseSpot {
 export function todayPlan(data: AppData, now = Date.now()) {
   const input = { enabledDecks: data.settings.enabledDecks, courses: data.courses, states: data.cards };
   const cards = studyCards(input);
-  const newRemaining = data.settings.newPerDay - (data.newByDay[dayKey(now)] ?? 0);
-  const counts = countQueue({ cards, states: data.cards, now, newRemaining });
+  const counts = countQueue({ cards, states: data.cards, now, ...dailyLimits(data, now) });
   const total = counts.newCount + counts.learning + counts.review;
   const nextDue = cards
     .map((c) => data.cards[c.id])

@@ -1167,3 +1167,66 @@ main.play {
   flex-direction: column;
   gap: 12px;
 }
+
+/* Settings: labelled fields with hints, text inputs, and the algorithm switch. */
+.settings h4 {
+  margin: 10px 0 0;
+  font: 600 0.78rem var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border-top: 1px solid var(--line);
+  padding-top: 14px;
+}
+.field-text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+.field-text small {
+  font-size: 0.8rem;
+}
+.field-wide {
+  flex-direction: column;
+  align-items: stretch;
+}
+.text-input {
+  background: var(--sheet);
+  border: 1px solid var(--line-strong);
+  border-radius: 7px;
+  padding: 5px 8px;
+  width: 180px;
+  font-family: var(--mono);
+  font-size: 0.88rem;
+}
+textarea.text-input {
+  width: 100%;
+  resize: vertical;
+}
+.text-input.invalid {
+  border-color: var(--brick);
+}
+.segmented {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+.segmented button {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 12px 14px;
+  border-radius: var(--radius);
+}
+.segmented button small {
+  color: var(--muted);
+}
+.segmented button.on {
+  border-color: var(--crown);
+  background: var(--crown-wash);
+}
+.segmented button.on b {
+  color: var(--crown);
+}

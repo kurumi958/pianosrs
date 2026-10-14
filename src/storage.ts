@@ -1,13 +1,25 @@
 import type { GrandStyle } from './music/phrase';
-import type { CardState, Grade } from './srs/scheduler';
+import { type CardState, DEFAULT_SCHEDULER, type Grade, type SchedulerConfig } from './srs/scheduler';
 import type { CourseState } from './srs/study';
 
 /** "alternate" rotates through treble, bass and grand staff phrases. */
 export type SightClef = 'treble' | 'bass' | 'grand' | 'alternate';
 
+/** Scheduling options, like an Anki deck preset. */
+export interface SrsSettings extends SchedulerConfig {
+  maxReviewsPerDay: number;
+  /** Hour (0–23) when a new day starts, so late-night study counts as the same day. */
+  dayStartHour: number;
+  /** When nothing else is due, learning cards due within this many minutes are shown early. */
+  learnAheadMin: number;
+}
+
+export const DEFAULT_SRS: SrsSettings = { ...DEFAULT_SCHEDULER, maxReviewsPerDay: 200, dayStartHour: 4, learnAheadMin: 20 };
+
 export interface Settings {
   enabledDecks: string[];
   newPerDay: number;
+  srs: SrsSettings;
   easyMs: number;
   goodMs: number;
   /** Accept the right note in any octave (handy for small 25/32-key controllers). */
@@ -43,6 +55,7 @@ export const DEFAULT_SETTINGS: Settings = {
   // Nothing is studied until you pick a course or decks: beginners and experienced readers start in different places.
   enabledDecks: [],
   newPerDay: 10,
+  srs: DEFAULT_SRS,
   easyMs: 2000,
   goodMs: 5000,
   ignoreOctave: false,
@@ -77,6 +90,8 @@ export interface AppData {
   courses: Record<string, CourseState>;
   /** Day key → number of new cards introduced that day. */
   newByDay: Record<string, number>;
+  /** Day key → number of review cards answered that day (for the daily review limit). */
+  reviewsByDay: Record<string, number>;
   log: ReviewLogEntry[];
 }
 
@@ -84,7 +99,7 @@ const KEY = 'pianosrs:v1';
 const MAX_LOG = 20_000;
 
 export function emptyData(): AppData {
-  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS }, courses: {}, newByDay: {}, log: [] };
+  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS, srs: { ...DEFAULT_SRS } }, courses: {}, newByDay: {}, reviewsByDay: {}, log: [] };
 }
 
 export function loadData(): AppData {
@@ -108,15 +123,31 @@ export function normalize(raw: unknown): AppData {
   return {
     version: 1,
     cards: d.cards ?? {},
-    settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}) },
+    settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), srs: { ...DEFAULT_SRS, ...(d.settings?.srs ?? {}) } },
     courses: d.courses ?? {},
     newByDay: d.newByDay ?? {},
+    reviewsByDay: d.reviewsByDay ?? {},
     log: d.log ?? [],
   };
 }
 
-/** Days roll over at 4am local time, like Anki, so late-night sessions count as the same day. */
+let dayStartHour = DEFAULT_SRS.dayStartHour;
+
+/** Set the hour a new day starts (from settings). */
+export function setDayStartHour(h: number): void {
+  dayStartHour = Math.min(23, Math.max(0, Math.round(h)));
+}
+
+/** The next time a new day starts after `now`. */
+export function nextDayStart(now: number): number {
+  const d = new Date(now);
+  d.setHours(dayStartHour, 0, 0, 0);
+  if (d.getTime() <= now) d.setDate(d.getDate() + 1);
+  return d.getTime();
+}
+
+/** Days roll over at 4am local time by default, like Anki, so late-night sessions count as the same day. */
 export function dayKey(now: number): string {
-  const d = new Date(now - 4 * 3_600_000);
+  const d = new Date(now - dayStartHour * 3_600_000);
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }

@@ -8,6 +8,8 @@ export interface QueueInput {
   now: number;
   /** How many more new cards may be introduced today. */
   newRemaining: number;
+  /** How many more review cards may be shown today (unlimited if omitted). */
+  reviewRemaining?: number;
   /** Learning cards due within this window are shown early once nothing else is left (like Anki's "learn ahead"). */
   learnAheadMs?: number;
   /** Avoid showing the same card twice in a row when there is an alternative. */
@@ -31,7 +33,7 @@ export function pickNext(q: QueueInput): QueuePick | null {
   const notLast = (xs: typeof due) => xs.find((x) => x.card.id !== q.lastCardId) ?? xs[0];
 
   const dueLearning = due.filter((x) => x.state.status !== 'review');
-  const dueReview = due.filter((x) => x.state.status === 'review');
+  const dueReview = (q.reviewRemaining ?? Infinity) > 0 ? due.filter((x) => x.state.status === 'review') : [];
 
   // Learning cards that are due take priority, then mix reviews with new cards.
   if (dueLearning.length) return { ...notLast(dueLearning), isNew: false };
@@ -64,5 +66,9 @@ export function countQueue(q: QueueInput): QueueCounts {
     if (!s || s.status === 'new') unseen++;
     else if (s.due <= q.now) s.status === 'review' ? review++ : learning++;
   }
-  return { newCount: Math.min(unseen, Math.max(0, q.newRemaining)), learning, review };
+  return {
+    newCount: Math.min(unseen, Math.max(0, q.newRemaining)),
+    learning,
+    review: Math.min(review, Math.max(0, q.reviewRemaining ?? Infinity)),
+  };
 }

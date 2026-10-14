@@ -15,7 +15,8 @@ import {
 } from 'lucide-react';
 import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
 import { hub, installComputerKeyboard } from './midi/input';
-import { type AppData, loadData, saveData } from './storage';
+import { type AppData, loadData, saveData, setDayStartHour } from './storage';
+import { fillFsrsMemory, needsFsrsMemory } from './srs/memory';
 import { useMidiStatus } from './hooks';
 import { todayPlan } from './srs/today';
 import { Home } from './components/Home';
@@ -116,6 +117,12 @@ export function App() {
     if (data.settings.theme === 'system') root.removeAttribute('data-theme');
     else root.setAttribute('data-theme', data.settings.theme);
   }, [data.settings.theme]);
+  // Day boundaries follow the "next day starts at" setting.
+  setDayStartHour(data.settings.srs.dayStartHour);
+  // With FSRS on, make sure every studied card has an FSRS memory (rebuilt from its review history).
+  useEffect(() => {
+    if (data.settings.srs.algorithm === 'fsrs' && needsFsrsMemory(data)) update((d) => void fillFsrsMemory(d));
+  }, [data, update]);
   useEffect(() => installComputerKeyboard(), []);
   useEffect(() => {
     hub.enableMidi();

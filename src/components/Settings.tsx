@@ -1,5 +1,6 @@
 import { useRef } from 'react';
 import { useMidiStatus } from '../hooks';
+import { SchedulingSettings } from './SchedulingSettings';
 import { hub } from '../midi/input';
 import { type AppData, emptyData, normalize, type Settings as S } from '../storage';
 
@@ -98,11 +99,8 @@ export function Settings({ data, update, replace }: Props) {
       </p>
       </section>
       <section className="panel stack">
-        <h3>Flashcards</h3>
-      <label className="field">
-        New cards per day
-        <input type="number" min={0} max={200} value={s.newPerDay} onChange={(e) => set('newPerDay', Math.max(0, Number(e.target.value)))} />
-      </label>
+        <h3>Answer grading</h3>
+      <p className="muted small">A right answer is graded by how quickly you play it. A wrong note is always "Again".</p>
       <label className="field">
         "Easy" if answered within (seconds)
         <input type="number" min={0.5} step={0.5} value={s.easyMs / 1000} onChange={(e) => set('easyMs', Number(e.target.value) * 1000)} />
@@ -111,8 +109,9 @@ export function Settings({ data, update, replace }: Props) {
         "Good" if answered within (seconds), slower is "Hard"
         <input type="number" min={1} step={0.5} value={s.goodMs / 1000} onChange={(e) => set('goodMs', Number(e.target.value) * 1000)} />
       </label>
-      <p className="muted small">Times are per note; chords get 50% extra per additional note. A wrong note is always "Again".</p>
+      <p className="muted small">Times are per note; chords get 50% extra per additional note.</p>
       </section>
+      <SchedulingSettings data={data} update={update} />
       <section className="panel stack">
         <h3>Rhythm</h3>
       <label className="field">

@@ -4,7 +4,11 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
 
 - **Review**: flash cards show a note, interval or chord on a treble, bass or grand staff. Play it on your keyboard. The app grades you
   automatically: a wrong key counts as *Again*, and a right answer is *Easy*, *Good* or *Hard* depending on how fast you
-  played it. Scheduling is Anki's SM-2 algorithm with learning and relearning steps, a daily new-card limit, and undo.
+  played it. Scheduling uses **FSRS** (the default) or Anki's classic **SM-2**, with learning and relearning steps, daily
+  new-card and review limits, and undo. All of Anki's scheduling options are in *Settings → Scheduling*: steps, desired
+  retention and FSRS parameters (paste optimised ones from Anki), or SM-2's graduating/easy intervals, starting ease, easy
+  bonus, interval modifier, hard and new intervals; plus maximum interval, fuzz, when the next day starts and the learn-ahead
+  limit. Turning FSRS on rebuilds each card's memory by replaying its review history.
 - **Sight-read**: generated 4/4 phrases built from the notes you've learned, with weak notes weighted to come up more.
   Play straight through (the cursor waits for the right note or chord); notes you stumble on become due in your flash cards
   straight away. Phrases can be treble only, bass only, or **two-handed on the grand staff**, with bar patterns for a right-hand
@@ -81,7 +85,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 
 | Path | What it does |
 | --- | --- |
-| `src/srs/scheduler.ts` | SM-2 scheduling (pure functions) |
+| `src/srs/scheduler.ts` | FSRS (via ts-fsrs) and SM-2 scheduling (pure functions) |
+| `src/srs/memory.ts` | Rebuilds FSRS memory from review history; reschedules after settings change |
 | `src/srs/cards.ts` | Card model (staff, key, notes per hand) and builders |
 | `src/srs/deck.ts` | Topic decks, course registry, shared card lookup |
 | `src/srs/course.ts` | The adult beginner course, unit by unit |
@@ -101,8 +106,9 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 
 - Custom decks: build your own from a range of notes, clefs, keys and intervals
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
+- Optimising FSRS parameters from your own review history (today: paste them from Anki)
+- Per-deck scheduling presets, leeches and suspending cards
 - Minor keys
 - Ties, sixteenth notes, triplets, 6/8; judging note lengths (releases), not just onsets
-- FSRS scheduling as an option
 - Cloud sync between devices
 - Native Android build with a MIDI bridge plugin (see above)

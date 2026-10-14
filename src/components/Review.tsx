@@ -8,6 +8,7 @@ import { autoGrade } from '../srs/grading';
 import { type CardState, formatDelay, type Grade, GRADE_LABELS, schedule } from '../srs/scheduler';
 import { countQueue, pickNext, type QueuePick } from '../srs/session';
 import { type AppData, dayKey } from '../storage';
+import { dailyLimits } from '../srs/today';
 import { useNoteEvents, useShowOnKeyboard } from '../hooks';
 import { CardStaff } from './Staff';
 import { PlayScreen } from './PlayScreen';
@@ -26,6 +27,7 @@ interface Undo {
   cardId: string;
   prev: CardState | undefined;
   wasNew: boolean;
+  wasReview: boolean;
   day: string;
 }
 
@@ -53,9 +55,8 @@ export function Review({ data, update, onNavigate }: Props) {
     const { open } = courseProgress(c, data.cards, data.courses[c.id]);
     return c.units![open].title;
   });
-  const today = dayKey(Date.now());
-  const newRemaining = data.settings.newPerDay - (data.newByDay[today] ?? 0);
-  const queueInput = { cards, states: data.cards, now: Date.now(), newRemaining, lastCardId: lastCard.current };
+  const limits = dailyLimits(data, Date.now());
+  const queueInput = { cards, states: data.cards, now: Date.now(), ...limits, lastCardId: lastCard.current };
   const counts = countQueue(queueInput);
 
   const targetMidi = (c: Card) => c.notes.map(toMidi);
@@ -70,7 +71,7 @@ export function Review({ data, update, onNavigate }: Props) {
       matcher.current = new AttemptMatcher(targetMidi(next.card), data.settings.ignoreOctave || !!next.card.anyOctave);
       shownAt.current = performance.now();
     }
-  }, [cards, data, newRemaining]);
+  }, [cards, data]);
 
   // Pick the first card when the screen opens or decks change.
   useEffect(() => {
@@ -81,12 +82,14 @@ export function Review({ data, update, onNavigate }: Props) {
   const commit = (p: QueuePick, grade: Grade, ms: number) => {
     const now = Date.now();
     const day = dayKey(now);
-    setUndo({ cardId: p.card.id, prev: data.cards[p.card.id], wasNew: p.isNew, day });
+    const wasReview = p.state.status === 'review';
+    setUndo({ cardId: p.card.id, prev: data.cards[p.card.id], wasNew: p.isNew, wasReview, day });
     lastCard.current = p.card.id;
     setReviewedNow((n) => n + 1);
     update((d) => {
-      d.cards[p.card.id] = schedule(p.state, grade, now);
+      d.cards[p.card.id] = schedule(p.state, grade, now, d.settings.srs);
       if (p.isNew) d.newByDay[day] = (d.newByDay[day] ?? 0) + 1;
+      if (wasReview) d.reviewsByDay[day] = (d.reviewsByDay[day] ?? 0) + 1;
       d.log.push({ id: p.card.id, t: now, grade, ms: Math.round(ms) });
     });
   };
@@ -166,6 +169,7 @@ export function Review({ data, update, onNavigate }: Props) {
       if (undo.prev) d.cards[undo.cardId] = undo.prev;
       else delete d.cards[undo.cardId];
       if (undo.wasNew) d.newByDay[undo.day] = Math.max(0, (d.newByDay[undo.day] ?? 1) - 1);
+      if (undo.wasReview) d.reviewsByDay[undo.day] = Math.max(0, (d.reviewsByDay[undo.day] ?? 1) - 1);
       const idx = d.log.map((l) => l.id).lastIndexOf(undo.cardId);
       if (idx >= 0) d.log.splice(idx, 1);
     });
@@ -291,7 +295,8 @@ export function Review({ data, update, onNavigate }: Props) {
   }
 
   const color = phase === 'correct' ? COLORS.ok : phase === 'wrong' ? COLORS.miss : undefined;
-  const preview = (g: Grade) => formatDelay(schedule(pick.state, g, Date.now()).due - Date.now());
+  // Show the unfuzzed interval on the buttons, as Anki does.
+  const preview = (g: Grade) => formatDelay(schedule(pick.state, g, Date.now(), { ...data.settings.srs, fuzz: false }).due - Date.now());
 
   const status =
     phase === 'question' ? (

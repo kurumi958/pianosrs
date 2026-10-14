@@ -1,13 +1,11 @@
 A prototype of PianoSRS as a desktop app. It's the same app as the web version, in its own window, with your progress saved on this computer.
 
-## New in 0.2.0
+## New in 0.3.0
 
-- **Learn, then review.** New cards are learned in ungraded learning sessions: click a unit in Lessons, or *Learn* on a deck or song, and play through at your own pace. Review then shows only cards you've learned, grouped by lesson, deck and song.
-- **A new sidebar**: Home · Practice (Sight-read, Things to work on) · Learn (Lessons, Review) · Library (Decks, Songs) · You.
-- **The curriculum filled out**: a second course (*Late beginner to intermediate*, 20 units), 14 new decks, levels on every deck, and a custom deck builder.
-- **Lessons**: units show their cards and let you start the course anywhere.
-- **New logo**: the keyboard colonnade.
-- PDF transcription with an API key can zoom in on dense music (*Look closer*).
+- **190 classical pieces** in Songs, complete and ready to learn a few bars at a time: Bach (the Anna Magdalena notebook, Little Preludes, all fifteen Two-Part Inventions, preludes and fugues from the Well-Tempered Clavier), Clementi, Czerny, Burgmüller's Op. 100, Schumann's *Album for the Young* and *Scenes from Childhood*, Tchaikovsky, Mozart, Beethoven (including all of *Für Elise* and the *Moonlight* Sonata's first two movements), Kuhlau, Haydn, Handel, Chopin's Preludes, Satie and Grieg. Browse them by collection, filter by level (now up to *Advanced*) or search. Engraved by the Mutopia Project; repeat signs, dynamics and ornaments aren't shown yet.
+- **A real piano sound**: your MIDI piano and the on-screen keyboard play a sampled grand (the Salamander Grand Piano, eight velocity layers, with sustain pedal), so you can practise silently on headphones. Turn it on in *Settings → Sound*.
+- **A clockwork metronome**: an analogue-style tick, with an optional bell on the first beat.
+- The PDF transcriber is removed for now; import songs as MusicXML.
 
 ## Which file to download
 

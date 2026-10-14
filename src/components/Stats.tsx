@@ -36,61 +36,73 @@ export function Stats({ data }: { data: AppData }) {
   const gradeCounts = [1, 2, 3, 4].map((g) => todayLog.filter((l) => l.grade === g).length);
 
   return (
-    <div className="panel stats">
-      <h2>Progress</h2>
+    <div className="page-inner">
+      <header className="page-head">
+        <h2>Stats</h2>
+        <p>How your reading is coming along, and what's coming up.</p>
+      </header>
       <div className="tiles">
-        <div className="tile">
+        <div className="stat">
           <b>{todayLog.length}</b>
-          <small>reviews today</small>
+          <span>cards answered today</span>
         </div>
-        <div className="tile">
-          <b>{week.length ? Math.round((100 * correctWeek) / week.length) : '–'}%</b>
-          <small>correct (7 days)</small>
+        <div className="stat">
+          <b>{week.length ? `${Math.round((100 * correctWeek) / week.length)}%` : '–'}</b>
+          <span>right in the last 7 days</span>
         </div>
-        <div className="tile">
+        <div className="stat">
           <b>{avgMs ? (avgMs / 1000).toFixed(1) + 's' : '–'}</b>
-          <small>avg. answer time</small>
+          <span>average answer time</span>
         </div>
-        <div className="tile">
+        <div className="stat">
           <b>{states.length}</b>
-          <small>cards learned</small>
+          <span>cards learned</span>
         </div>
       </div>
 
-      <h3>Cards</h3>
-      <p>
-        {byStatus.learning} learning · {byStatus.relearning} relearning · {byStatus.review} young · {byStatus.mature} mature (21d+)
-      </p>
-      {todayLog.length > 0 && (
-        <p className="muted">Today: {gradeCounts.map((n, i) => `${n} ${GRADE_LABELS[(i + 1) as 1 | 2 | 3 | 4]}`).join(' · ')}</p>
-      )}
+      <section className="panel">
+        <h3>Due over the next week</h3>
+        <div className="forecast" style={{ marginTop: 14 }}>
+          {forecast.map((n, i) => (
+            <div key={i} className="fc">
+              <span className="num small">{n}</span>
+              <div className="fc-bar" style={{ height: `${(100 * n) / maxF}%` }} title={`${n} due`} />
+              <small className="muted">{i === 0 ? 'Today' : `+${i}d`}</small>
+            </div>
+          ))}
+        </div>
+      </section>
 
-      <h3>Due over the next week</h3>
-      <div className="forecast">
-        {forecast.map((n, i) => (
-          <div key={i} className="fc">
-            <div className="fc-bar" style={{ height: `${(100 * n) / maxF}%` }} title={`${n} due`} />
-            <small>{i === 0 ? 'Today' : `+${i}d`}</small>
-            <small className="muted">{n}</small>
-          </div>
-        ))}
-      </div>
+      <section className="panel">
+        <h3>Your cards</h3>
+        <p style={{ marginTop: 6 }}>
+          {byStatus.learning} learning · {byStatus.relearning} relearning · {byStatus.review} young · {byStatus.mature} mature (due in 21+ days)
+        </p>
+        {todayLog.length > 0 && (
+          <p className="muted">Today: {gradeCounts.map((n, i) => `${n} ${GRADE_LABELS[(i + 1) as 1 | 2 | 3 | 4]}`).join(' · ')}</p>
+        )}
+      </section>
 
-      <h3>Trickiest notes</h3>
-      {weakest.length ? (
-        <ul className="weak">
-          {weakest.map((s) => {
-            const c = CARD_BY_ID.get(s.id)!;
-            return (
-              <li key={s.id}>
-                <b>{cardLabel(c)}</b> <span className="muted">{STAFF_LABEL[c.staff]} · {s.lapses} lapses · ease {s.ease.toFixed(2)}</span>
-              </li>
-            );
-          })}
-        </ul>
-      ) : (
-        <p className="muted">Nothing tricky yet.</p>
-      )}
+      <section className="panel">
+        <h3>Trickiest notes</h3>
+        {weakest.length ? (
+          <ul className="weak" style={{ marginTop: 8 }}>
+            {weakest.map((s) => {
+              const c = CARD_BY_ID.get(s.id)!;
+              return (
+                <li key={s.id}>
+                  <b>{cardLabel(c)}</b>{' '}
+                  <span className="muted">
+                    {STAFF_LABEL[c.staff]} · {s.lapses} lapses · ease {s.ease.toFixed(2)}
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        ) : (
+          <p className="muted">Nothing tricky yet.</p>
+        )}
+      </section>
     </div>
   );
 }

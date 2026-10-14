@@ -36,10 +36,14 @@ export function Settings({ data, update, replace }: Props) {
   };
 
   return (
-    <div className="panel settings">
-      <h2>Settings</h2>
+    <div className="page-inner settings">
+      <header className="page-head">
+        <h2>Settings</h2>
+        <p>Your piano, how cards are graded, rhythm timing, and your saved progress.</p>
+      </header>
 
-      <h3>MIDI</h3>
+      <section className="panel stack">
+        <h3>MIDI</h3>
       {!midi.supported ? (
         <p className="warn">
           This browser doesn't support Web MIDI. Use Chrome or Edge (desktop or Android). You can still use the on-screen piano or your
@@ -81,8 +85,9 @@ export function Settings({ data, update, replace }: Props) {
         Computer keyboard: <kbd>A</kbd>–<kbd>;</kbd> are white keys from C, <kbd>W</kbd> <kbd>E</kbd> <kbd>T</kbd> <kbd>Y</kbd>{' '}
         <kbd>U</kbd> <kbd>O</kbd> <kbd>P</kbd> black keys; <kbd>Z</kbd>/<kbd>X</kbd> shift octave.
       </p>
-
-      <h3>Flashcards</h3>
+      </section>
+      <section className="panel stack">
+        <h3>Flashcards</h3>
       <label className="field">
         New cards per day
         <input type="number" min={0} max={200} value={s.newPerDay} onChange={(e) => set('newPerDay', Math.max(0, Number(e.target.value)))} />
@@ -96,8 +101,9 @@ export function Settings({ data, update, replace }: Props) {
         <input type="number" min={1} step={0.5} value={s.goodMs / 1000} onChange={(e) => set('goodMs', Number(e.target.value) * 1000)} />
       </label>
       <p className="muted small">Times are per note; chords get 50% extra per additional note. A wrong note is always "Again".</p>
-
-      <h3>Rhythm</h3>
+      </section>
+      <section className="panel stack">
+        <h3>Rhythm</h3>
       <label className="field">
         Tempo for rhythm cards (♩ per minute)
         <input type="number" min={30} max={200} step={4} value={s.rhythmBpm} onChange={(e) => set('rhythmBpm', Math.min(200, Math.max(30, Number(e.target.value) || 72)))} />
@@ -110,8 +116,9 @@ export function Settings({ data, update, replace }: Props) {
         Speaker latency is compensated automatically. If your taps still come out consistently late, raise this by roughly the amount
         reported (e.g. "±40ms, a bit late" → try 40); if early, lower it.
       </p>
-
-      <h3>Your data</h3>
+      </section>
+      <section className="panel stack">
+        <h3>Your data</h3>
       <p className="muted small">Progress is stored in this browser only. Export a backup to move it to another device.</p>
       <div className="row">
         <button onClick={exportData}>Export backup</button>
@@ -130,6 +137,7 @@ export function Settings({ data, update, replace }: Props) {
           Reset everything
         </button>
       </div>
+      </section>
     </div>
   );
 }

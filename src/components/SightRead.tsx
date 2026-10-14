@@ -11,6 +11,7 @@ import { cardsInKey, knownCards, learnedKeys, learnedRhythms, phraseRhythms, stu
 import type { AppData, SightClef } from '../storage';
 import { useNoteEvents, useShowOnKeyboard } from '../hooks';
 import { PhraseStaff } from './Staff';
+import { PlayScreen } from './PlayScreen';
 
 interface Props {
   data: AppData;
@@ -75,7 +76,6 @@ export function SightRead({ data, update }: Props) {
   const [okSet, setOkSet] = useState<Set<number>>(new Set());
   const [wrong, setWrong] = useState<number[]>([]);
   const [result, setResult] = useState<Result | null>(null);
-  const [showOptions, setShowOptions] = useState(false);
   useShowOnKeyboard([], wrong);
   const [running, setRunning] = useState<{ start: number; judge: TempoJudge } | null>(null);
   const [countIn, setCountIn] = useState(false);
@@ -240,155 +240,179 @@ export function SightRead({ data, update }: Props) {
       d.settings[k] = v;
     });
 
-  if (!events.length) {
-    return <div className="panel empty">Enable some decks in the <b>Decks</b> tab to practise sight-reading.</div>;
-  }
-
-  const target = events[Math.min(cursor, events.length - 1)].pitches.map(toMidi);
+  const target = events.length ? events[Math.min(cursor, events.length - 1)].pitches.map(toMidi) : [];
   const bars = phrase.measures.length;
-  const STAFF_NAMES: Record<SightClef, string> = { treble: 'Treble', bass: 'Bass', grand: 'Grand staff', alternate: 'Rotating staves' };
-  const summary = [
-    STAFF_NAMES[sc],
-    `${bars} bar${bars > 1 ? 's' : ''}`,
-    settings.sightKey === 'learned' ? 'keys you know' : `${keyName(settings.sightKey)} major`,
-    tempo ? `in time, ♩ = ${settings.sightBpm}` : 'wait for me',
-  ].join(' · ');
+  const STAFF_NAMES: Record<SightClef, string> = { treble: 'Treble clef', bass: 'Bass clef', grand: 'Grand staff', alternate: 'Rotating staves' };
+
+  const left = (
+    <>
+      <div className="side-block">
+        <span className="eyebrow">Phrase</span>
+        <span>
+          {STAFF_NAMES[sc]} · {bars} bar{bars > 1 ? 's' : ''}
+        </span>
+        <span className="muted small">{settings.sightKey === 'learned' ? 'In a key you know' : `${keyName(settings.sightKey)} major`}</span>
+      </div>
+      <div className="side-block">
+        <span className="eyebrow">Progress</span>
+        <span className="big-counts">
+          <span>
+            {Math.min(tempo ? okSet.size + missed.size : cursor, events.length)}/{events.length}
+            <small>{tempo ? 'Played' : 'Notes'}</small>
+          </span>
+          {missed.size > 0 && (
+            <span className="c-learn">
+              {missed.size}
+              <small>Missed</small>
+            </span>
+          )}
+        </span>
+      </div>
+      <div className="side-block">
+        <span className="eyebrow">Mode</span>
+        <span>{tempo ? `In time at ♩ = ${settings.sightBpm}` : 'Wait for me'}</span>
+        <span className="muted small">
+          {tempo ? 'A bar of count-in, then keep going with the metronome.' : 'The cursor waits for each right note.'}
+        </span>
+      </div>
+    </>
+  );
+
+  const right = (
+    <>
+      <span className="eyebrow">Options</span>
+      <label className="opt">
+        Staff
+        <select id="sr-staff" value={sc} onChange={(e) => set('sightClef', e.target.value as SightClef)}>
+          <option value="treble">Treble</option>
+          <option value="bass">Bass</option>
+          <option value="grand">Grand staff (both hands)</option>
+          <option value="alternate">Rotate all three</option>
+        </select>
+      </label>
+      <label className="opt">
+        Length
+        <select id="sr-length" value={bars} onChange={(e) => set('phraseLength', Number(e.target.value) * 4)}>
+          {[1, 2, 3, 4, 6, 8].map((n) => (
+            <option key={n} value={n}>
+              {n} bar{n > 1 ? 's' : ''}
+            </option>
+          ))}
+        </select>
+      </label>
+      {phrase.staff === 'grand' && (
+        <label className="opt">
+          Hands
+          <select id="sr-hands" value={settings.grandStyle} onChange={(e) => set('grandStyle', e.target.value as GrandStyle)}>
+            <option value="mixed">Mixed</option>
+            <option value="melody">RH melody, LH held</option>
+            <option value="bass-melody">LH melody, RH held</option>
+            <option value="alternate">Alternating hands</option>
+            <option value="together">Hands together</option>
+          </select>
+        </label>
+      )}
+      <label className="opt">
+        Key
+        <select id="sr-key" value={settings.sightKey} onChange={(e) => set('sightKey', e.target.value)}>
+          <option value="learned">Keys I've learned</option>
+          {MAJOR_KEYS.map((k) => (
+            <option key={k.key} value={k.key}>
+              {keyName(k.key)} major
+            </option>
+          ))}
+        </select>
+      </label>
+      <label className="opt">
+        Mode
+        <select id="sr-mode" value={settings.sightMode} onChange={(e) => set('sightMode', e.target.value as 'wait' | 'tempo')}>
+          <option value="wait">Wait for me</option>
+          <option value="tempo">In time</option>
+        </select>
+      </label>
+      {tempo && (
+        <label className="opt">
+          Tempo (♩ per minute)
+          <input
+            id="sr-bpm"
+            type="number"
+            min={30}
+            max={200}
+            step={4}
+            value={settings.sightBpm}
+            onChange={(e) => set('sightBpm', Math.min(200, Math.max(30, Number(e.target.value) || 60)))}
+          />
+        </label>
+      )}
+      <label className="opt-check" title="Use rhythms from rhythm cards you've learned (otherwise quarter notes)">
+        <input id="sr-rhythms" type="checkbox" checked={settings.sightRhythms} onChange={(e) => set('sightRhythms', e.target.checked)} /> Learned rhythms
+      </label>
+      <label className="opt-check" title="Mostly steps and skips, like real melodies, instead of leaping anywhere">
+        <input id="sr-stepwise" type="checkbox" checked={settings.melodic} onChange={(e) => set('melodic', e.target.checked)} /> Stepwise melodies
+      </label>
+    </>
+  );
+
+  const overlay = result && (
+    <div className="result-overlay">
+      <div className="panel result">
+        <h3>
+          {result.clean === result.events ? 'Clean run' : `${Math.round((100 * result.clean) / result.events)}% right${tempo ? ' and on time' : ' first time'}`}
+        </h3>
+        {result.timing ? (
+          <p>
+            {result.events - result.timing.skipped} of {result.events} played · timing ±{Math.round(result.timing.meanAbs)}ms
+            {Math.abs(result.timing.mean) > 25 ? (result.timing.mean > 0 ? ', running late' : ', rushing') : ''} · {result.misses} wrong or
+            stray key{result.misses === 1 ? '' : 's'}
+          </p>
+        ) : (
+          <p>
+            {result.events} notes and chords in {(result.ms / 1000).toFixed(1)}s ({Math.round((result.events / result.ms) * 60_000)} a
+            minute) · {result.misses} wrong key{result.misses === 1 ? '' : 's'}
+          </p>
+        )}
+        {result.missed.length > 0 && (
+          <p className="muted">
+            Stumbled on: {result.missed.map(cardLabel).join(', ')}
+            {result.flagged > 0 && `. ${result.flagged} moved up for flash-card review.`}
+          </p>
+        )}
+      </div>
+    </div>
+  );
+
+  const status = !events.length
+    ? 'Turn on some decks or start the course to get phrases to read.'
+    : result
+      ? 'Space or Enter for the next phrase'
+      : tempo
+        ? running
+          ? countIn
+            ? 'Count-in…'
+            : "Keep going, don't stop for mistakes"
+          : `Press any key for a one-bar count-in at ♩ = ${settings.sightBpm}`
+        : `${target.length > 1 ? `Play ${target.length} notes together · ` : ''}keep your eyes on the music`;
 
   return (
-    <div className="stage-col sight">
-      <div className="row controls">
-        <span className="summary">{summary}</span>
-        <span className="spacer" />
-        <button onClick={() => setShowOptions((o) => !o)} aria-expanded={showOptions} className={showOptions ? 'active' : ''}>
-          Options
-        </button>
-        <button onClick={() => setRound((r) => r + 1)}>New phrase</button>
-      </div>
-
-      {showOptions && (
-      <div className="panel options-panel" role="dialog" aria-label="Sight-reading options">
-        <label>
-          Staff{' '}
-          <select value={sc} onChange={(e) => set('sightClef', e.target.value as SightClef)}>
-            <option value="treble">Treble</option>
-            <option value="bass">Bass</option>
-            <option value="grand">Grand staff (both hands)</option>
-            <option value="alternate">Rotate all three</option>
-          </select>
-        </label>
-        <label>
-          Length{' '}
-          <select value={bars} onChange={(e) => set('phraseLength', Number(e.target.value) * 4)}>
-            {[1, 2, 3, 4, 6, 8].map((n) => (
-              <option key={n} value={n}>
-                {n} bar{n > 1 ? 's' : ''}
-              </option>
-            ))}
-          </select>
-        </label>
-        {phrase.staff === 'grand' && (
-          <label>
-            Hands{' '}
-            <select value={settings.grandStyle} onChange={(e) => set('grandStyle', e.target.value as GrandStyle)}>
-              <option value="mixed">Mixed</option>
-              <option value="melody">RH melody, LH held</option>
-              <option value="bass-melody">LH melody, RH held</option>
-              <option value="alternate">Alternating hands</option>
-              <option value="together">Hands together</option>
-            </select>
-          </label>
-        )}
-        <label>
-          Key{' '}
-          <select value={settings.sightKey} onChange={(e) => set('sightKey', e.target.value)}>
-            <option value="learned">Keys I've learned</option>
-            {MAJOR_KEYS.map((k) => (
-              <option key={k.key} value={k.key}>
-                {keyName(k.key)} major
-              </option>
-            ))}
-          </select>
-        </label>
-        <label>
-          Mode{' '}
-          <select value={settings.sightMode} onChange={(e) => set('sightMode', e.target.value as 'wait' | 'tempo')}>
-            <option value="wait">Wait for me</option>
-            <option value="tempo">In time</option>
-          </select>
-        </label>
-        {tempo && (
-          <label>
-            ♩ ={' '}
-            <input
-              type="number"
-              className="bpm"
-              min={30}
-              max={200}
-              step={4}
-              value={settings.sightBpm}
-              onChange={(e) => set('sightBpm', Math.min(200, Math.max(30, Number(e.target.value) || 60)))}
-            />
-          </label>
-        )}
-        <label title="Use rhythms from rhythm cards you've learned (otherwise quarter notes)">
-          <input type="checkbox" checked={settings.sightRhythms} onChange={(e) => set('sightRhythms', e.target.checked)} /> Rhythms
-        </label>
-        <label title="Mostly steps and skips, like real melodies, instead of leaping anywhere">
-          <input type="checkbox" checked={settings.melodic} onChange={(e) => set('melodic', e.target.checked)} /> Stepwise
-        </label>
-        <button className="primary" onClick={() => setShowOptions(false)}>
-          Done
-        </button>
-      </div>
-      )}
-
-      <div className="phrase-area">
-      <PhraseStaff phrase={phrase} events={events} marks={marks} />
-      {result && (
-        <div className="result-overlay">
-        <div className="panel result">
-          <h3>{result.clean === result.events ? 'Clean run! ✨' : `${Math.round((100 * result.clean) / result.events)}% right${tempo ? ' and on time' : ' first time'}`}</h3>
-          {result.timing ? (
-            <p>
-              {result.events - result.timing.skipped} of {result.events} played · timing ±{Math.round(result.timing.meanAbs)}ms
-              {Math.abs(result.timing.mean) > 25 ? (result.timing.mean > 0 ? ', running late' : ', rushing') : ''} · {result.misses} wrong
-              or stray key{result.misses === 1 ? '' : 's'}
-            </p>
-          ) : (
-            <p>
-              {result.events} notes/chords in {(result.ms / 1000).toFixed(1)}s ({Math.round((result.events / result.ms) * 60_000)} per
-              minute) · {result.misses} wrong key{result.misses === 1 ? '' : 's'}
-            </p>
-          )}
-          {result.missed.length > 0 && (
-            <p className="muted">
-              Stumbled on: {result.missed.map(cardLabel).join(', ')}
-              {result.flagged > 0 && ` — ${result.flagged} moved up for flashcard review`}
-            </p>
-          )}
-          <div className="row">
-            {tempo && <button onClick={startTempo}>Try again</button>}
-            <button className="primary" onClick={() => setRound((r) => r + 1)}>
-              Next phrase ⏎
+    <PlayScreen
+      left={left}
+      right={right}
+      music={events.length ? <PhraseStaff phrase={phrase} events={events} marks={marks} /> : null}
+      overlay={overlay}
+      status={status}
+      showLabels={settings.showKeyLabels}
+      bottom={
+        <>
+          {tempo && !running && (
+            <button onClick={startTempo} disabled={!events.length}>
+              {result ? 'Try again' : 'Start'}
             </button>
-          </div>
-        </div>
-        </div>
-      )}
-      </div>
-        <div className="feedback status">
-          <span className="muted">
-            {result
-              ? 'Space or Enter for the next phrase'
-              : tempo
-              ? running
-                ? countIn
-                  ? 'Count-in…'
-                  : 'Keep going — don\'t stop for mistakes'
-                : `Press any key for a one-bar count-in at ♩ = ${settings.sightBpm}`
-              : `${cursor + 1} of ${events.length}${target.length > 1 ? ` · play ${target.length} notes together` : ''} · keep your eyes on the music`}
-          </span>
-        </div>
-    </div>
+          )}
+          <button className="primary" onClick={() => setRound((r) => r + 1)}>
+            {result ? 'Next phrase ⏎' : 'New phrase'}
+          </button>
+        </>
+      }
+    />
   );
 }

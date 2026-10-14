@@ -4,7 +4,7 @@ import { withKey } from '../src/srs/cards';
 import { cardsInKey, courseProgress, knownCards, learnedKeys, phraseRhythms, studyCards } from '../src/srs/study';
 import type { CardState } from '../src/srs/scheduler';
 import { DEFAULT_SCHEDULER as cfg, newCardState, schedule } from '../src/srs/scheduler';
-import { ALL_CARDS, CARD_BY_ID, cardLabel, DECKS } from '../src/srs/deck';
+import { ALL_CARDS, CARD_BY_ID, cardLabel, DECK_GROUPS, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
 import { gradeTaps, matchTaps, onsets, parseRhythm, rhythmSpec } from '../src/music/rhythm';
@@ -20,6 +20,7 @@ import {
   singleStaffPhrase,
 } from '../src/music/phrase';
 import { autoGrade } from '../src/srs/grading';
+import { studyStreak } from '../src/srs/today';
 import { mulberry32 } from '../src/srs/deck';
 
 const MIN = 60_000;
@@ -74,6 +75,11 @@ describe('scheduler', () => {
 });
 
 describe('decks', () => {
+  it('puts every topic deck in exactly one group', () => {
+    const grouped = DECK_GROUPS.flatMap((g) => g.decks);
+    const topics = DECKS.filter((d) => d.kind === 'topic').map((d) => d.id);
+    expect([...grouped].sort()).toEqual([...topics].sort());
+  });
   it('has unique card ids', () => {
     expect(CARD_BY_ID.size).toBe(ALL_CARDS.length);
   });
@@ -374,6 +380,17 @@ describe('melodic phrases', () => {
     const random = generatePhrase(pool, {}, 400, mulberry32(5));
     const melodic = generatePhrase(pool, {}, 400, mulberry32(5), true);
     expect(avgLeap(melodic)).toBeLessThan(avgLeap(random) * 0.6);
+  });
+});
+
+describe('home page', () => {
+  it('counts a streak of consecutive study days', () => {
+    const now = new Date(2026, 9, 14, 12).getTime();
+    const day = (n: number) => ({ t: now - n * DAY });
+    expect(studyStreak([], now)).toBe(0);
+    expect(studyStreak([day(0), day(1), day(2), day(4)], now)).toBe(3);
+    expect(studyStreak([day(1), day(2)], now)).toBe(2); // today not started yet
+    expect(studyStreak([day(2)], now)).toBe(0);
   });
 });
 

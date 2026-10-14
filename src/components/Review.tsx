@@ -10,13 +10,14 @@ import { countQueue, pickNext, type QueuePick } from '../srs/session';
 import { type AppData, dayKey } from '../storage';
 import { useNoteEvents, useShowOnKeyboard } from '../hooks';
 import { CardStaff } from './Staff';
+import { PlayScreen } from './PlayScreen';
 import { RhythmTrial } from './RhythmTrial';
 import { describeTaps, type TapResult } from '../music/rhythm';
 
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
-  onChooseDecks: () => void;
+  onNavigate: (tab: 'Home' | 'Sight-read') => void;
 }
 
 type Phase = 'question' | 'correct' | 'wrong';
@@ -28,7 +29,7 @@ interface Undo {
   day: string;
 }
 
-export function Review({ data, update, onChooseDecks }: Props) {
+export function Review({ data, update, onNavigate }: Props) {
   const [pick, setPick] = useState<QueuePick | null>(null);
   const [phase, setPhase] = useState<Phase>('question');
   const [wrongNotes, setWrongNotes] = useState<number[]>([]);
@@ -175,118 +176,196 @@ export function Review({ data, update, onChooseDecks }: Props) {
     lastCard.current = undefined;
   };
 
-  if (!cards.length) {
-    const startCourse = () =>
-      update((d) => {
-        d.settings.enabledDecks = [...d.settings.enabledDecks, COURSES[0].id];
-        d.courses[COURSES[0].id] ??= { start: 0, unlocked: 0 };
-      });
-    return (
-      <div className="stage center">
-      <div className="panel empty onboarding">
-        <h2>What would you like to learn?</h2>
-        <div className="choices">
-          <button className="choice" onClick={startCourse}>
-            <b>I'm new to reading music</b>
-            <span className="muted">Start the adult beginner course from your first notes on the staff.</span>
-          </button>
-          <button className="choice" onClick={onChooseDecks}>
-            <b>I can already read some</b>
-            <span className="muted">Join the course at a later unit, or pick topic decks like ledger lines or accidentals.</span>
+  const set = <K extends keyof AppData['settings']>(k: K, v: AppData['settings'][K]) =>
+    update((d) => {
+      d.settings[k] = v;
+    });
+
+  const left = (
+    <>
+      <div className="side-block">
+        <span className="eyebrow">Today</span>
+        <div className="big-counts">
+          <span className="c-new">
+            {counts.newCount}
+            <small>New</small>
+          </span>
+          <span className="c-learn">
+            {counts.learning}
+            <small>Learn</small>
+          </span>
+          <span className="c-review">
+            {counts.review}
+            <small>Due</small>
+          </span>
+        </div>
+        {reviewedNow > 0 && <span className="muted small">{reviewedNow} answered this session</span>}
+      </div>
+      {activeCourses.map((t) => (
+        <div className="side-block" key={t}>
+          <span className="eyebrow">Course</span>
+          <span>{t}</span>
+        </div>
+      ))}
+      {pick?.isNew && <span className="badge">New card</span>}
+    </>
+  );
+
+  const right = (
+    <>
+      <div className="side-block">
+        <span className="eyebrow">Answer</span>
+        <p className="muted small">Play on your piano, or tap the keyboard below. A wrong note shows the right keys.</p>
+      </div>
+      {pick?.card.rhythm && (
+        <label className="opt">
+          Rhythm tempo (♩ per minute)
+          <input
+            id="rhythm-bpm"
+            type="number"
+            min={30}
+            max={200}
+            step={4}
+            value={data.settings.rhythmBpm}
+            onChange={(e) => set('rhythmBpm', Math.min(200, Math.max(30, Number(e.target.value) || 72)))}
+          />
+        </label>
+      )}
+      <div className="side-block">
+        <label className="opt-check">
+          <input id="opt-labels" type="checkbox" checked={data.settings.showKeyLabels} onChange={(e) => set('showKeyLabels', e.target.checked)} />
+          Label C keys
+        </label>
+        <label className="opt-check">
+          <input id="opt-sound" type="checkbox" checked={data.settings.onscreenSound} onChange={(e) => set('onscreenSound', e.target.checked)} />
+          Sound for on-screen keys
+        </label>
+      </div>
+      {undo && (
+        <div className="side-block">
+          <button className="small" onClick={doUndo}>
+            Undo last answer
           </button>
         </div>
-      </div>
-      </div>
-    );
-  }
+      )}
+    </>
+  );
 
-  if (!pick) {
+  if (!cards.length || !pick) {
     const nextDue = Object.values(data.cards)
       .filter((s) => s.status !== 'new' && cards.some((c) => c.id === s.id))
       .reduce((m, s) => Math.min(m, s.due), Infinity);
-    return (
-      <div className="stage center">
-      <div className="panel empty">
-        <h2>All done for now 🎉</h2>
-        <p>{reviewedNow ? `You reviewed ${reviewedNow} card${reviewedNow === 1 ? '' : 's'} this session.` : 'Nothing is due.'}</p>
-        {Number.isFinite(nextDue) && <p className="muted">Next card due in {formatDelay(Math.max(0, nextDue - Date.now()))}.</p>}
-        <p className="muted">Try the <b>Sight-read</b> tab to practise what you've learned, or raise the new-card limit in Settings.</p>
-        <div className="row">
-          <button onClick={showNext}>Check again</button>
-          {undo && <button onClick={doUndo}>Undo last</button>}
+    const empty = !cards.length ? (
+      <div className="result panel">
+        <h3>Nothing to study yet</h3>
+        <p className="muted">Start the beginner course or pick some decks, and your cards will appear here.</p>
+        <div className="row" style={{ justifyContent: 'center' }}>
+          <button className="primary" onClick={() => onNavigate('Home')}>
+            Get started
+          </button>
         </div>
       </div>
+    ) : (
+      <div className="result panel">
+        <h3>All done for now</h3>
+        <p>{reviewedNow ? `You answered ${reviewedNow} card${reviewedNow === 1 ? '' : 's'} this session.` : 'Nothing is due.'}</p>
+        {Number.isFinite(nextDue) && <p className="muted">Next card due in {formatDelay(Math.max(0, nextDue - Date.now()))}.</p>}
+        <div className="row" style={{ justifyContent: 'center' }}>
+          <button className="primary" onClick={() => onNavigate('Sight-read')}>
+            Practise sight-reading
+          </button>
+          <button onClick={showNext}>Check again</button>
+        </div>
       </div>
+    );
+    return (
+      <PlayScreen
+        left={left}
+        right={right}
+        music={empty}
+        status=""
+        showLabels={data.settings.showKeyLabels}
+        bottom={<GradeBar />}
+      />
     );
   }
 
   const color = phase === 'correct' ? COLORS.ok : phase === 'wrong' ? COLORS.miss : undefined;
   const preview = (g: Grade) => formatDelay(schedule(pick.state, g, Date.now()).due - Date.now());
 
+  const status =
+    phase === 'question' ? (
+      pick.card.rhythm ? (
+        ''
+      ) : pick.card.prompt === 'key' ? (
+        'Which major key is this? Play its tonic in any octave'
+      ) : (
+        `Play the ${pick.card.notes.length > 1 ? 'notes' : 'note'}`
+      )
+    ) : phase === 'correct' ? (
+      <>✓ {pick.card.rhythm ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`}</>
+    ) : pick.card.rhythm ? (
+      <>✗ Not quite: {detail}. Continue, or tap any key to practise it again.</>
+    ) : (
+      <>
+        ✗ You played {wrongNotes.map(midiName).join(', ')}, it's <b>{cardLabel(pick.card)}</b>. Play it to continue.
+      </>
+    );
+
   return (
-    <div className="stage review">
-      <div className="stage-main">
-        {pick.card.rhythm ? (
+    <PlayScreen
+      left={left}
+      right={right}
+      music={
+        pick.card.rhythm ? (
           <RhythmTrial pattern={pick.card.rhythm} bpm={data.settings.rhythmBpm} latencyMs={data.settings.latencyMs} onDone={onRhythmDone} />
         ) : (
           <CardStaff card={pick.card} color={color} />
-        )}
-      </div>
-      <aside className="side">
-      <div className="counts">
-        <span className="c-new" title="New">{counts.newCount}</span>
-        <span className="c-learn" title="Learning">{counts.learning}</span>
-        <span className="c-review" title="Review">{counts.review}</span>
-        {pick.isNew && <span className="badge">new card</span>}
-      </div>
-      {activeCourses.map((t) => (
-        <p key={t} className="muted small course-pos">
-          {t}
-        </p>
+        )
+      }
+      status={status}
+      statusTone={phase === 'question' ? '' : phase}
+      showLabels={data.settings.showKeyLabels}
+      bottom={
+        <GradeBar
+          lit={phase === 'question' ? null : chosen}
+          enabled={phase === 'wrong'}
+          preview={preview}
+          onPick={setChosen}
+          onContinue={phase === 'wrong' ? continueAfterWrong : undefined}
+        />
+      }
+    />
+  );
+}
+
+/** Again / Hard / Good / Easy with the next interval for each; the app lights up the grade it gave. */
+function GradeBar({
+  lit = null,
+  enabled = false,
+  preview,
+  onPick,
+  onContinue,
+}: {
+  lit?: Grade | null;
+  enabled?: boolean;
+  preview?: (g: Grade) => string;
+  onPick?: (g: Grade) => void;
+  onContinue?: () => void;
+}) {
+  return (
+    <>
+      {([1, 2, 3, 4] as Grade[]).map((g) => (
+        <button key={g} className={`grade g${g} ${lit === g ? 'lit' : ''}`} disabled={!enabled} onClick={() => onPick?.(g)}>
+          {GRADE_LABELS[g]}
+          <small>{preview ? preview(g) : '–'}</small>
+        </button>
       ))}
-
-      <div className={`feedback ${phase}`}>
-        {phase === 'question' && !pick.card.rhythm && (
-          <span className="muted">
-            {pick.card.prompt === 'key'
-              ? 'Which major key is this? Play its tonic (any octave)'
-              : `Play the ${pick.card.notes.length > 1 ? 'notes' : 'note'} on your piano`}
-          </span>
-        )}
-        {phase === 'correct' && (
-          <span>
-            ✓ {pick.card.rhythm ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`} · {GRADE_LABELS[chosen]}
-          </span>
-        )}
-        {phase === 'wrong' && pick.card.rhythm && <span>✗ Not quite: {detail}. Press Continue, or tap any key to practise it again.</span>}
-        {phase === 'wrong' && !pick.card.rhythm && (
-          <span>
-            ✗ You played {wrongNotes.map(midiName).join(', ')} — it's <b>{cardLabel(pick.card)}</b>. Play it to continue.
-          </span>
-        )}
-      </div>
-
-      {phase === 'wrong' && (
-        <div className="grades">
-          {([1, 2, 3, 4] as Grade[]).map((g) => (
-            <button key={g} className={`grade g${g} ${chosen === g ? 'chosen' : ''}`} onClick={() => setChosen(g)}>
-              {GRADE_LABELS[g]}
-              <small>{preview(g)}</small>
-            </button>
-          ))}
-          <button className="primary" onClick={continueAfterWrong}>
-            Continue ⏎
-          </button>
-        </div>
-      )}
-
-      <span className="spacer" />
-      {undo && phase === 'question' && (
-        <button className="small undo" onClick={doUndo}>
-          Undo last answer
+      {onContinue && (
+        <button className="primary" onClick={onContinue}>
+          Continue ⏎
         </button>
       )}
-      </aside>
-    </div>
+    </>
   );
 }

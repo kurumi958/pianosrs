@@ -1,18 +1,45 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import {
+  BookOpen,
+  ChartColumn,
+  GraduationCap,
+  House,
+  Layers,
+  Maximize,
+  Minimize,
+  Music,
+  PanelLeftClose,
+  PanelLeftOpen,
+  Piano as PianoIcon,
+  RotateCw,
+  Settings as SettingsIcon,
+} from 'lucide-react';
+import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
 import { hub, installComputerKeyboard } from './midi/input';
 import { type AppData, loadData, saveData } from './storage';
-import { useHeldNotes, useKeyMarks, useMidiStatus } from './hooks';
+import { useMidiStatus } from './hooks';
+import { todayPlan } from './srs/today';
+import { Home } from './components/Home';
 import { Review } from './components/Review';
 import { SightRead } from './components/SightRead';
+import { Lessons } from './components/Lessons';
 import { Decks } from './components/Decks';
 import { Stats } from './components/Stats';
 import { Settings } from './components/Settings';
-import { Piano } from './components/Piano';
 
-const TABS = ['Review', 'Sight-read', 'Decks', 'Stats', 'Settings'] as const;
-type Tab = (typeof TABS)[number];
-/** Tabs you play on: these show the keyboard. The others are pages you read and scroll. */
+export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Lessons' | 'Decks' | 'Stats' | 'Settings';
+
+const NAV: { tab: Tab; icon: ComponentType<{ size?: number }> }[] = [
+  { tab: 'Home', icon: House },
+  { tab: 'Review', icon: Layers },
+  { tab: 'Sight-read', icon: Music },
+  { tab: 'Lessons', icon: GraduationCap },
+  { tab: 'Decks', icon: BookOpen },
+  { tab: 'Stats', icon: ChartColumn },
+  { tab: 'Settings', icon: SettingsIcon },
+];
+/** Screens you play on: these use the practice layout with the keyboard. */
 const PLAY_TABS: Tab[] = ['Review', 'Sight-read'];
+const SIDEBAR_KEY = 'pianosrs:sidebar';
 
 function useFullscreen(): [boolean, () => void] {
   const [on, setOn] = useState(!!document.fullscreenElement);
@@ -37,15 +64,37 @@ function useFullscreen(): [boolean, () => void] {
   return [on, toggle];
 }
 
+/** The sidebar remembers whether it was collapsed; small screens start collapsed. */
+function useSidebar(): [boolean, () => void] {
+  const [collapsed, setCollapsed] = useState(() => {
+    try {
+      const saved = localStorage.getItem(SIDEBAR_KEY);
+      if (saved !== null) return saved === 'collapsed';
+    } catch {
+      // storage unavailable
+    }
+    return window.innerWidth < 1000;
+  });
+  const toggle = () =>
+    setCollapsed((c) => {
+      try {
+        localStorage.setItem(SIDEBAR_KEY, c ? 'open' : 'collapsed');
+      } catch {
+        // storage unavailable
+      }
+      return !c;
+    });
+  return [collapsed, toggle];
+}
+
 export function App() {
   const [data, setData] = useState<AppData>(loadData);
   const dataRef = useRef(data);
-  const [tab, setTab] = useState<Tab>('Review');
+  const [tab, setTab] = useState<Tab>('Home');
   const [portraitOk, setPortraitOk] = useState(false);
   const midi = useMidiStatus();
-  const held = useHeldNotes();
-  const marks = useKeyMarks();
   const [fullscreen, toggleFullscreen] = useFullscreen();
+  const [collapsed, toggleSidebar] = useSidebar();
 
   /** Apply a mutation to a copy of the data synchronously, persist it, and re-render. */
   const update = useCallback((fn: (d: AppData) => void) => {
@@ -73,64 +122,76 @@ export function App() {
   const midiLabel = !midi.supported
     ? 'No Web MIDI'
     : !midi.enabled
-      ? 'MIDI off'
+      ? 'Connect MIDI'
       : midi.devices.length
         ? midi.devices.map((d) => d.name).join(', ')
         : 'No MIDI device';
   const midiOk = midi.enabled && midi.devices.length > 0;
+  const due = todayPlan(data).total;
   const playing = PLAY_TABS.includes(tab);
 
   return (
-    <div className={`app ${playing ? 'with-keyboard' : ''}`}>
-      <header className="topbar">
-        <h1>
-          <span className="logo">𝄞</span> PianoSRS
-        </h1>
-        <nav>
-          {TABS.map((t) => (
-            <button key={t} className={t === tab ? 'active' : ''} onClick={() => setTab(t)}>
-              {t}
-            </button>
-          ))}
-        </nav>
-        <span className="spacer" />
-        <button
-          className={`midi-pill ${midiOk ? 'ok' : ''}`}
-          onClick={() => (midi.enabled ? setTab('Settings') : hub.enableMidi())}
-          title={midi.error ?? 'MIDI status'}
-        >
-          <span className="dot" /> {midiLabel}
-        </button>
-        {document.fullscreenEnabled && (
-          <button className="icon-btn" onClick={toggleFullscreen} title={fullscreen ? 'Exit full screen' : 'Full screen'} aria-label={fullscreen ? 'Exit full screen' : 'Full screen'}>
-            {fullscreen ? '⤡' : '⤢'}
+    <div className="app">
+      <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Main">
+        <div className="sidebar-head">
+          <button className="icon-btn" onClick={toggleSidebar} title={collapsed ? 'Expand menu' : 'Collapse menu'} aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}>
+            {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
           </button>
-        )}
-      </header>
+          <span className="brand">
+            <span className="clef">𝄞</span>PianoSRS
+          </span>
+        </div>
+        {NAV.map(({ tab: t, icon: Icon }, i) => (
+          <div key={t}>
+            {i === 3 && <div className="nav-sep" />}
+            <button
+              className={`nav-item ${t === tab ? 'active' : ''}`}
+              // Drop focus after a click so playing on the computer keyboard doesn't leave a focus ring here.
+              onClick={(e) => {
+                setTab(t);
+                e.currentTarget.blur();
+              }} title={t} aria-current={t === tab ? 'page' : undefined}>
+              <Icon size={19} />
+              <span className="nav-label">{t}</span>
+              {t === 'Review' && due > 0 && <span className="nav-badge">{due}</span>}
+            </button>
+          </div>
+        ))}
+        <div className="side-foot">
+          <button
+            className={`nav-item midi-status ${midiOk ? 'ok' : ''}`}
+            onClick={() => (midi.enabled ? setTab('Settings') : hub.enableMidi())}
+            title={midi.error ?? midiLabel}
+          >
+            {collapsed ? <PianoIcon size={19} /> : <span className="dot" />}
+            <span className="nav-label side-foot-label">{midiLabel}</span>
+          </button>
+          {document.fullscreenEnabled && (
+            <button className="nav-item" onClick={toggleFullscreen} title={fullscreen ? 'Exit full screen' : 'Full screen'}>
+              {fullscreen ? <Minimize size={19} /> : <Maximize size={19} />}
+              <span className="nav-label">{fullscreen ? 'Exit full screen' : 'Full screen'}</span>
+            </button>
+          )}
+        </div>
+      </nav>
 
       <main className={playing ? 'play' : 'page'}>
-        {tab === 'Review' && <Review data={data} update={update} onChooseDecks={() => setTab('Decks')} />}
+        {tab === 'Home' && <Home data={data} update={update} onNavigate={setTab} />}
+        {tab === 'Review' && <Review data={data} update={update} onNavigate={setTab} />}
         {tab === 'Sight-read' && <SightRead data={data} update={update} />}
+        {tab === 'Lessons' && <Lessons data={data} update={update} />}
         {tab === 'Decks' && <Decks data={data} update={update} />}
         {tab === 'Stats' && <Stats data={data} />}
         {tab === 'Settings' && <Settings data={data} update={update} replace={replace} />}
       </main>
 
-      {playing && (
-        <footer className="keyboard-dock">
-          <Piano held={held} answer={marks.answer} wrong={marks.wrong} showLabels={data.settings.showKeyLabels} />
-        </footer>
-      )}
-
       {!portraitOk && (
         <div className="rotate-hint" role="dialog" aria-label="Rotate your device">
-          <div className="rotate-icon" aria-hidden="true">
-            ⟳
-          </div>
+          <RotateCw size={48} />
           <p>
             <b>Turn your device sideways</b>
           </p>
-          <p className="muted">PianoSRS is laid out for a landscape screen, with the whole keyboard along the bottom.</p>
+          <p className="muted">PianoSRS is laid out for a landscape screen, with the whole keyboard across the bottom.</p>
           <button onClick={() => setPortraitOk(true)}>Use it upright anyway</button>
         </div>
       )}

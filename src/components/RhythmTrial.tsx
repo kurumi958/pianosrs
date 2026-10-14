@@ -83,7 +83,7 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
   const countIn = stage.kind === 'running' && beat < pattern.beats;
   return (
     <div className="rhythm-trial">
-      <div className="paper card-staff rhythm" ref={staff} aria-label="Rhythm to tap" />
+      <div className="rhythm-staff" ref={staff} aria-label="Rhythm to tap" />
       <div className="beats" aria-live="polite">
         {Array.from({ length: pattern.beats }, (_, i) => {
           const active = stage.kind === 'running' && beat >= 0 && beat % pattern.beats === i;
@@ -94,7 +94,7 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
           );
         })}
       </div>
-      <p className="muted small center">
+      <p className="muted small">
         {stage.kind === 'ready' && `Press any key for a one-bar count-in at ♩ = ${bpm}, then tap the rhythm on any key.`}
         {stage.kind === 'running' && (countIn ? 'Count-in…' : 'Play!')}
         {stage.kind === 'done' && 'Press any key to try it again for practice.'}

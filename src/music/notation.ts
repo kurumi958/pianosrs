@@ -4,11 +4,12 @@ import { accidentalInKey, type Clef, type Pitch, sortPitches, vexKey } from './n
 import { accidentalsToDraw, eventKey, type DrawnAccidental, type Phrase, type PhraseEvent } from './phrase';
 import type { Dur, RhythmPattern } from './rhythm';
 
+/** Score colours: warm ink, burgundy for the note to play, sage for right, brick for wrong. */
 export const COLORS = {
-  ink: '#1b1b1b',
-  current: '#2463eb',
-  ok: '#1e8a4c',
-  miss: '#d03b3b',
+  ink: '#2a211d',
+  current: '#7a2531',
+  ok: '#557548',
+  miss: '#b0402c',
 };
 
 function prepare(el: HTMLElement, width: number, height: number) {

@@ -9,7 +9,7 @@ export function CardStaff({ card, color }: { card: Card; color?: string }) {
   useEffect(() => {
     if (ref.current) renderCard(ref.current, card, color);
   }, [card, color]);
-  return <div className={`paper card-staff ${card.staff}`} ref={ref} aria-label="Note to play" />;
+  return <div className="music-svg" ref={ref} aria-label="Music to play" />;
 }
 
 /** Largest on-screen scale the music is drawn at, so a short phrase doesn't balloon. */
@@ -42,8 +42,8 @@ export function PhraseStaff({ phrase, events, marks }: { phrase: Phrase; events:
     renderPhrase(ref.current, phrase, events, marks, bestPerLine(phrase, size));
   }, [phrase, events, marks, size]);
   return (
-    <div className="paper phrase-box" ref={box}>
-      <div className="phrase-svg" ref={ref} />
+    <div className="music-svg" ref={box}>
+      <div className="music-svg" ref={ref} />
     </div>
   );
 }

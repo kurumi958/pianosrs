@@ -32,7 +32,18 @@ export interface DeckDef {
   /** All cards, in introduction order. */
   cards: Card[];
   units?: CourseUnit[];
+  /** For topic decks: the group it's listed under on the Decks page. */
+  group?: string;
 }
+
+/** Topic deck groups, in display order. */
+export const DECK_GROUPS: { name: string; decks: string[] }[] = [
+  { name: 'Reading the staff', decks: ['treble-staff', 'bass-staff', 'treble-ledger', 'bass-ledger'] },
+  { name: 'Grand staff', decks: ['grand-staff', 'grand-hands', 'grand-chords'] },
+  { name: 'Sharps, flats & key signatures', decks: ['treble-accidentals', 'bass-accidentals', 'key-signatures', 'key-notes-sharp', 'key-notes-flat'] },
+  { name: 'Intervals & chords', decks: ['treble-intervals', 'bass-intervals', 'treble-triads', 'bass-triads'] },
+  { name: 'Rhythm', decks: ['rhythm-basics', 'rhythm-three', 'rhythm-rests', 'rhythm-eighths', 'rhythm-dotted'] },
+];
 
 /** Landmark notes first (they anchor everything else), the rest in a stable shuffled order. */
 function ordered(cards: Card[], landmarks: string[], seed: number): Card[] {
@@ -299,6 +310,7 @@ export const CARD_BY_ID: Map<string, Card> = new Map(ALL_CARDS.map((c) => [c.id,
 const canonical = (cards: Card[]) => cards.map((c) => CARD_BY_ID.get(c.id)!);
 export const DECKS: DeckDef[] = [...COURSES, ...TOPIC_DECKS].map((d) => ({
   ...d,
+  group: DECK_GROUPS.find((g) => g.decks.includes(d.id))?.name,
   cards: canonical(d.cards),
   units: d.units?.map((u) => ({ ...u, cards: canonical(u.cards) })),
 }));

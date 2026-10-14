@@ -17,6 +17,7 @@ import type { Focus } from './srs/weak';
 import { type SongFocus, Songs } from './components/Songs';
 import { SongPractice } from './components/SongPlay';
 import { loadImportedSongs, songById, syncSongDecks } from './songs/library';
+import { syncCustomDecks } from './srs/custom';
 
 export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Songs' | 'Stats' | 'Settings' | 'Setup';
 
@@ -122,6 +123,7 @@ export function App() {
     loadImportedSongs().then(libraryChanged);
   }, [libraryChanged]);
   syncSongDecks(data.songs);
+  syncCustomDecks(data.customDecks);
   const [openSong, setOpenSong] = useState<string | null>(null);
   const [songPractice, setSongPractice] = useState<SongFocus | null>(null);
   const practiceSong = songPractice ? songById(songPractice.song) : undefined;

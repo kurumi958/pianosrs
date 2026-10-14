@@ -48,6 +48,11 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   keys: *name the key* (the same signatures read as minor) and *the raised 7th* (harmonic minor's leading tone, which the
   signature doesn't show). Cards are
   shared by id between decks and the course, so a note learned in one counts in the other.
+- **Your own decks**: *New deck* on the Decks page builds one from choices: notes, intervals (2nds to octaves) or chords
+  (triads or sevenths on each note of the key's scale, in any inversions) on a staff, over any range and in any keys
+  (major or minor, optionally with chromatic notes); naming key signatures up to a number of sharps or flats; or your
+  own rhythms, one bar per line. A live preview shows the card count and the first few cards. Cards with the same notes
+  as a built-in deck's are the same cards, so their progress carries over; decks are kept in your backup.
 - **Things to work on**: notes you often misread in sight-reading (3+ misses in your last 10 attempts, with the keys you
   tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).
   *Practice* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and
@@ -142,6 +147,7 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/srs/cards.ts` | Card model (staff, key, notes per hand) and builders |
 | `src/srs/deck.ts` | Topic decks, course registry, shared card lookup |
 | `src/srs/course.ts` | The two courses, unit by unit |
+| `src/srs/custom.ts` | Custom decks: the choices that define one, and the cards they make |
 | `src/srs/generators.ts` | Card builders shared by decks and courses (notes in keys, spelled chords, hand positions, rhythms) |
 | `src/srs/study.ts` | Course unlocking and which cards are available to study / read |
 | `src/srs/session.ts` | Picks the next card (learning → reviews → new → learn-ahead) |
@@ -164,7 +170,6 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 
 ## Ideas for later
 
-- Custom decks: build your own from a range of notes, clefs, keys and intervals
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
 - Optimising FSRS parameters from your own review history (today: paste them from Anki)
 - Per-deck scheduling presets, leeches and suspending cards

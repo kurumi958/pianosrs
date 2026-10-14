@@ -1,6 +1,7 @@
 import type { SongOptions } from './songs/library';
 import type { GrandStyle } from './music/phrase';
 import type { SightStat } from './srs/weak';
+import type { CustomDeckSpec } from './srs/custom';
 import { type CardState, type CardStatus, DEFAULT_SCHEDULER, type Grade, type SchedulerConfig } from './srs/scheduler';
 import type { CourseState } from './srs/study';
 
@@ -123,6 +124,8 @@ export interface AppData {
   songs: Record<string, SongOptions>;
   /** Recent play-throughs of each song's bars (1 = a mistake, 0 = clean), by song id and bar index. */
   songBars: Record<string, Record<number, number[]>>;
+  /** Decks you've built, as the choices that make them. */
+  customDecks: CustomDeckSpec[];
   log: ReviewLogEntry[];
 }
 
@@ -140,6 +143,7 @@ export function emptyData(): AppData {
     sightStats: {},
     songs: {},
     songBars: {},
+    customDecks: [],
     log: [],
   };
 }
@@ -177,6 +181,7 @@ export function normalize(raw: unknown): AppData {
     sightStats: d.sightStats ?? {},
     songs: d.songs ?? {},
     songBars: d.songBars ?? {},
+    customDecks: d.customDecks ?? [],
     log: d.log ?? [],
   };
 }

@@ -630,21 +630,31 @@ export const DECKS: DeckDef[] = [...COURSES, ...TOPIC_DECKS].map((d) => ({
   units: d.units?.map((u) => ({ ...u, cards: canonical(u.cards) })),
 }));
 
+/** The built-in cards, which decks added at run time share rather than replace. */
+const BUILT_IN = new Map(CARD_BY_ID);
+
 /**
- * Replace the song decks (ids starting "song:") with these. Songs are added at run time (the built-in ones and any
- * you import), and their cards depend on how each song is split up, so their decks are swapped in whole.
+ * Replace the decks whose ids start with `prefix` ("song:", "custom:") with these. Songs and your own decks are added at
+ * run time and rebuilt whenever they change, so they're swapped in whole. A card with the same id as one already known
+ * (a custom deck's middle C is the treble deck's middle C) uses that card, so progress is shared.
  */
-export function setSongDecks(decks: DeckDef[]): void {
-  for (let i = DECKS.length - 1; i >= 0; i--) {
-    if (!DECKS[i].id.startsWith('song:')) continue;
-    for (const c of DECKS[i].cards) CARD_BY_ID.delete(c.id);
-    DECKS.splice(i, 1);
-  }
+function setRuntimeDecks(prefix: string, decks: DeckDef[]): void {
+  for (let i = DECKS.length - 1; i >= 0; i--) if (DECKS[i].id.startsWith(prefix)) DECKS.splice(i, 1);
+  CARD_BY_ID.clear();
+  for (const [id, c] of BUILT_IN) CARD_BY_ID.set(id, c);
+  for (const d of DECKS)
+    if (d.id.startsWith('song:') || d.id.startsWith('custom:')) for (const c of d.cards) if (!CARD_BY_ID.has(c.id)) CARD_BY_ID.set(c.id, c);
   for (const d of decks) {
-    DECKS.push(d);
-    for (const c of d.cards) CARD_BY_ID.set(c.id, c);
+    for (const c of d.cards) if (!CARD_BY_ID.has(c.id)) CARD_BY_ID.set(c.id, c);
+    DECKS.push({ ...d, cards: d.cards.map((c) => CARD_BY_ID.get(c.id)!) });
   }
 }
+
+/** Replace the song decks (ids starting "song:"): their cards depend on how each song is split up. */
+export const setSongDecks = (decks: DeckDef[]) => setRuntimeDecks('song:', decks);
+
+/** Replace your own decks (ids starting "custom:"). */
+export const setCustomDecks = (decks: DeckDef[]) => setRuntimeDecks('custom:', decks);
 
 /** Courses, with their cards resolved to the shared card objects. */
 export const COURSE_DECKS: DeckDef[] = DECKS.filter((d) => d.kind === 'course');

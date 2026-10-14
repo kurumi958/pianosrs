@@ -2050,3 +2050,109 @@ button.bar-cell:hover {
   color: var(--crown);
   border-color: currentColor;
 }
+
+/* Custom deck builder. */
+.custom-new {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  padding: 12px 0 4px;
+}
+.custom-new button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.deck-actions {
+  gap: 2px;
+}
+.cfield {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 0.9rem;
+}
+.cfield > *,
+.cfield small {
+  font-weight: normal;
+}
+.cfield > input.text-input {
+  width: 100%;
+  max-width: 420px;
+  font-family: var(--sans);
+}
+.cfield .row select {
+  width: auto;
+}
+.kind-pick {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.kind-pick button {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  padding: 8px 12px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--sheet);
+  text-align: left;
+  cursor: pointer;
+}
+.kind-pick button small {
+  color: var(--muted);
+  font-size: 0.78rem;
+}
+.kind-pick button.on {
+  border-color: var(--crown);
+  background: var(--crown-wash);
+}
+.kind-pick button.on b {
+  color: var(--crown);
+}
+.pick-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.pick-chips button {
+  padding: 3px 10px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--sheet);
+  font: 500 0.82rem var(--sans);
+  color: var(--ink-2);
+  cursor: pointer;
+}
+.pick-chips button.on {
+  background: var(--crown);
+  border-color: var(--crown);
+  color: var(--crown-ink);
+}
+.row.wrap {
+  flex-wrap: wrap;
+}
+.text-input.mono {
+  font-family: var(--mono);
+}
+.custom-preview {
+  border-top: 1px solid var(--line);
+  padding-top: 12px;
+}
+.preview-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+.preview-card {
+  height: 160px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--score);
+  padding: 4px;
+}

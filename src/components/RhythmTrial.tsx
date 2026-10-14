@@ -4,6 +4,7 @@ import { COLORS, renderRhythm } from '../music/notation';
 import { gradeTaps, hitWindow, matchTaps, onsets, type RhythmPattern, type TapResult } from '../music/rhythm';
 import type { Grade } from '../srs/scheduler';
 import { useNoteEvents } from '../hooks';
+import { Metronome } from './Metronome';
 
 interface Props {
   pattern: RhythmPattern;
@@ -83,6 +84,7 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
   const countIn = stage.kind === 'running' && beat < pattern.beats;
   return (
     <div className="rhythm-trial">
+      <div className="rhythm-main">
       <div className="rhythm-staff" ref={staff} aria-label="Rhythm to tap" />
       <div className="beats" aria-live="polite">
         {Array.from({ length: pattern.beats }, (_, i) => {
@@ -99,6 +101,8 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
         {stage.kind === 'running' && (countIn ? 'Count-in…' : 'Play!')}
         {stage.kind === 'done' && 'Press any key to try it again for practice.'}
       </p>
+      </div>
+      <Metronome bpm={bpm} start={stage.kind === 'running' ? stage.start : null} />
     </div>
   );
 }

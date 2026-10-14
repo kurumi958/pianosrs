@@ -9,6 +9,7 @@ import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
 import { gradeTaps, matchTaps, onsets, parseRhythm, rhythmSpec } from '../src/music/rhythm';
 import { TempoJudge } from '../src/music/tempo';
+import { tempoMarking } from '../src/components/Metronome';
 import {
   QUARTERS,
   weightedSampler,
@@ -269,6 +270,17 @@ describe('rhythm', () => {
     expect(c.prompt).toBe('rhythm');
     expect(cardLabel(c)).toBe('4/4 rhythm (q. e h)');
     expect(deckCards('rhythm-eighths').length).toBeGreaterThan(5);
+  });
+});
+
+describe('metronome', () => {
+  it('names tempos like a mechanical metronome', () => {
+    expect(tempoMarking(40)).toBe('Grave');
+    expect(tempoMarking(72)).toBe('Andante');
+    expect(tempoMarking(76)).toBe('Andante');
+    expect(tempoMarking(120)).toBe('Animato');
+    expect(tempoMarking(132)).toBe('Allegro');
+    expect(tempoMarking(208)).toBe('Prestissimo');
   });
 });
 

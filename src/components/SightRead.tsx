@@ -12,6 +12,7 @@ import type { AppData, SightClef } from '../storage';
 import { useNoteEvents, useShowOnKeyboard } from '../hooks';
 import { PhraseStaff } from './Staff';
 import { PlayScreen } from './PlayScreen';
+import { Metronome } from './Metronome';
 
 interface Props {
   data: AppData;
@@ -270,7 +271,8 @@ export function SightRead({ data, update }: Props) {
       </div>
       <div className="side-block">
         <span className="eyebrow">Mode</span>
-        <span>{tempo ? `In time at ♩ = ${settings.sightBpm}` : 'Wait for me'}</span>
+        {tempo && <Metronome bpm={settings.sightBpm} start={running ? running.start : null} />}
+        <span>{tempo ? 'In time' : 'Wait for me'}</span>
         <span className="muted small">
           {tempo ? 'A bar of count-in, then keep going with the metronome.' : 'The cursor waits for each right note.'}
         </span>

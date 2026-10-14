@@ -4,11 +4,12 @@ import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { keyLabel, MAJOR_KEYS, MINOR_KEYS } from '../music/notes';
 import { barProblems, compileSong, type SongSource } from '../songs/dsl';
 import { importSong, type Song, updateTranscription } from '../songs/library';
-import { openPdf, renderPage } from '../songs/pdf';
+import { openPdf, pngSize, renderPage, renderRegion } from '../songs/pdf';
 import {
   chatFixPrompt,
   chatPrompt,
   COST_PER_PAGE,
+  COST_PER_PAGE_ZOOM,
   getApiKey,
   type PageTranscript,
   parseChatReply,
@@ -69,6 +70,7 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
     },
   );
   const [apiKey, setKey] = useState(getApiKey);
+  const [closer, setCloser] = useState(true);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string[]>([]);
   const [readNotes, setReadNotes] = useState<string[]>([]);
@@ -139,16 +141,29 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
     };
     try {
       const results: PageTranscript[] = [];
-      const read = async (p: number, context?: { key: string; meter: string; title: string }) =>
-        transcribePage({
+      const read = async (p: number, context?: { key: string; meter: string; title: string }) => {
+        const image = await renderPage(doc, p);
+        const imageSize = pngSize(image);
+        return transcribePage({
           apiKey,
-          image: await renderPage(doc, p),
+          image,
+          imageSize,
+          zoom: closer
+            ? (r) =>
+                renderRegion(doc, p, {
+                  x: r.x / imageSize.width,
+                  y: r.y / imageSize.height,
+                  width: r.width / imageSize.width,
+                  height: r.height / imageSize.height,
+                })
+            : undefined,
           page: p,
           pages,
           context,
           signal: ctl.signal,
           onStatus: (s) => show(p - 1, s),
         });
+      };
       // The first page sets the key, time and title; the rest are read three at a time with that in hand.
       results[0] = await read(1);
       show(0, `Page 1: ${results[0].bars.length} bars`);
@@ -304,7 +319,7 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
                 </button>
                 <button role="radio" aria-checked={via === 'api'} className={via === 'api' ? 'on' : ''} onClick={() => setVia('api')}>
                   <b>With an API key</b>
-                  <small>Automatic; about {COST_PER_PAGE} a page</small>
+                  <small>Automatic; about {closer ? COST_PER_PAGE_ZOOM : COST_PER_PAGE} a page</small>
                 </button>
               </div>
               {via === 'chat' ? (
@@ -351,9 +366,20 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
                 <>
                   <p className="muted small">
                     Each page is sent to Claude ({pages || '…'} page
-                    {pages === 1 ? '' : 's'}, roughly {COST_PER_PAGE} a page) using your Anthropic API key, which stays in this browser.
-                    Bars that don't add up are sent back to be read again. Expect to fix a few notes, more on dense or handwritten scores.
+                    {pages === 1 ? '' : 's'}, roughly {closer ? COST_PER_PAGE_ZOOM : COST_PER_PAGE} a page) using your Anthropic API key,
+                    which stays in this browser. Bars that don't add up are sent back to be read again. Expect to fix a few notes, more on
+                    dense or handwritten scores.
                   </p>
+                  <label className="check">
+                    <input type="checkbox" checked={closer} disabled={busy} onChange={(e) => setCloser(e.target.checked)} />
+                    <span>
+                      Look closer{' '}
+                      <small className="muted">
+                        (Claude zooms in on the page bar by bar. Much more accurate on dense music such as chords and inner voices, several
+                        times the cost and time. Simple pieces read well without it.)
+                      </small>
+                    </span>
+                  </label>
                   <label className="field">
                     Anthropic API key
                     <input

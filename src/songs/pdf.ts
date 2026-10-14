@@ -33,4 +33,40 @@ export async function renderPage(doc: PDFDocumentProxy, page: number, size = 156
   return canvas.toDataURL('image/png');
 }
 
+/** A region of a page, in fractions of its width and height (0–1). */
+export interface Region {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+}
+
+/**
+ * Draw part of a page (from 1), redrawn from the PDF rather than enlarged from an image, its longer side `size`
+ * pixels. `maxScale` caps the magnification relative to the page's own size (a scan has no more detail to give).
+ */
+export async function renderRegion(doc: PDFDocumentProxy, page: number, r: Region, size = 1568, maxScale = 8): Promise<string> {
+  const p = await doc.getPage(page);
+  const base = p.getViewport({ scale: 1 });
+  const w = r.width * base.width;
+  const h = r.height * base.height;
+  const scale = Math.min(size / Math.max(w, h), maxScale);
+  const viewport = p.getViewport({ scale, offsetX: -r.x * base.width * scale, offsetY: -r.y * base.height * scale });
+  const canvas = document.createElement('canvas');
+  canvas.width = Math.max(1, Math.round(w * scale));
+  canvas.height = Math.max(1, Math.round(h * scale));
+  const ctx = canvas.getContext('2d')!;
+  ctx.fillStyle = '#fff';
+  ctx.fillRect(0, 0, canvas.width, canvas.height);
+  await p.render({ canvasContext: ctx, viewport }).promise;
+  return canvas.toDataURL('image/png');
+}
+
+/** Width and height of a PNG data URL, read from its header. */
+export function pngSize(dataUrl: string): { width: number; height: number } {
+  const bytes = Uint8Array.from(atob(dataUrl.slice(dataUrl.indexOf(',') + 1, dataUrl.indexOf(',') + 33)), (c) => c.charCodeAt(0));
+  const view = new DataView(bytes.buffer);
+  return { width: view.getUint32(16), height: view.getUint32(20) };
+}
+
 export const isPdf = (bytes: Uint8Array) => bytes[0] === 0x25 && bytes[1] === 0x50 && bytes[2] === 0x44 && bytes[3] === 0x46; // %PDF

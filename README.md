@@ -61,7 +61,10 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
     chat with the PDF attached, and paste the reply back. If any bars don't add up, the app writes a fix request to send to
     the same chat.
   - *With an API key*: each page goes to Claude (`claude-opus-5-5`) automatically, with your own key, which stays in the
-    browser (roughly $0.10–0.40 a page); bars that don't add up are sent back to be read again.
+    browser; bars that don't add up are sent back to be read again. With *Look closer* (on by default) Claude also gets a
+    zoom tool: it asks for regions of the page, which the app redraws sharply from the PDF, and reads the music bar by bar
+    up close. On a dense page (Ravel's Pavane) that took note accuracy from about 56% to 98%, at roughly $1–3 a page
+    instead of $0.10–0.40.
   Either way you compare the engraving with the page and fix what was misread, or type the notes in yourself. The PDF is kept
   with the song, so *Check or correct the transcription* reopens it side by side. A song keeps one key and time signature
   throughout. In a test on a one-page Bach minuet (199 notes), Opus read every note right on both runs, Sonnet 96–98%, and
@@ -145,8 +148,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/songs/dsl.ts` | The compact notation the included songs are written in, compiled to the score model and MusicXML |
 | `src/songs/corpus.ts` | The included songs |
 | `src/songs/library.ts` | Song library (included + imported in IndexedDB) and song decks of passage cards |
-| `src/songs/pdf.ts` | Opens PDFs and renders pages (pdf.js) |
-| `src/songs/transcribe.ts` | Reads a page into the song notation with Claude, sending back bars that don't add up |
+| `src/songs/pdf.ts` | Opens PDFs and renders pages, or enlarged regions of them (pdf.js) |
+| `src/songs/transcribe.ts` | Reads a page into the song notation with Claude, zooming in on request and sending back bars that don't add up |
 | `src/songs/play.ts` | Note colours while playing, tie chains, bars to work on |
 | `src/components/*` | React screens |
 

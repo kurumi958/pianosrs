@@ -20,6 +20,15 @@ export interface Settings {
   melodic: boolean;
   /** Key for sight-reading phrases: a major key, or "learned" for a random key you've studied. */
   sightKey: string;
+  /** Metronome tempo for rhythm cards. */
+  rhythmBpm: number;
+  /** Sight-reading: wait for each note, or keep going in time with a metronome. */
+  sightMode: 'wait' | 'tempo';
+  sightBpm: number;
+  /** Use rhythms from rhythm cards you've learned in sight-reading (otherwise plain quarter notes). */
+  sightRhythms: boolean;
+  /** Extra timing compensation in ms if your taps consistently register late (positive) or early (negative). */
+  latencyMs: number;
   /** Label the C keys on the on-screen piano. Off by default so you read the staff, not the keyboard. */
   showKeyLabels: boolean;
   /** "all" listens to every connected MIDI input. */
@@ -41,6 +50,11 @@ export const DEFAULT_SETTINGS: Settings = {
   melodic: true,
   sightKey: 'learned',
   showKeyLabels: false,
+  rhythmBpm: 72,
+  sightMode: 'wait',
+  sightBpm: 60,
+  sightRhythms: true,
+  latencyMs: 0,
   midiInput: 'all',
   onscreenSound: true,
 };

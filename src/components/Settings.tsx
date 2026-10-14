@@ -97,6 +97,20 @@ export function Settings({ data, update, replace }: Props) {
       </label>
       <p className="muted small">Times are per note; chords get 50% extra per additional note. A wrong note is always "Again".</p>
 
+      <h3>Rhythm</h3>
+      <label className="field">
+        Tempo for rhythm cards (♩ per minute)
+        <input type="number" min={30} max={200} step={4} value={s.rhythmBpm} onChange={(e) => set('rhythmBpm', Math.min(200, Math.max(30, Number(e.target.value) || 72)))} />
+      </label>
+      <label className="field">
+        Latency adjustment (ms)
+        <input type="number" min={-300} max={300} step={5} value={s.latencyMs} onChange={(e) => set('latencyMs', Number(e.target.value) || 0)} />
+      </label>
+      <p className="muted small">
+        Speaker latency is compensated automatically. If your taps still come out consistently late, raise this by roughly the amount
+        reported (e.g. "±40ms, a bit late" → try 40); if early, lower it.
+      </p>
+
       <h3>Your data</h3>
       <p className="muted small">Progress is stored in this browser only. Export a backup to move it to another device.</p>
       <div className="row">

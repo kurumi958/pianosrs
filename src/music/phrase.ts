@@ -1,6 +1,7 @@
 import type { Card, StaffKind } from '../srs/deck';
 import type { CardState } from '../srs/scheduler';
 import { type Clef, diatonicIndex, keyAccidental, type Pitch } from './notes';
+import type { Dur, RhythmPattern } from './rhythm';
 
 /** How much a card should be favoured in sight-reading practice: weak and recently learned cards come up more. */
 export function practiceWeight(state: CardState | undefined): number {
@@ -57,30 +58,33 @@ export function generatePhrase(
 // ---------------------------------------------------------------------------------------------
 // Phrases with rhythm on one or two staves.
 
-export type Beats = 1 | 2 | 4;
-
 /** One note, chord or rest (no pitches) in one staff's voice. */
 export interface PhraseNote {
   pitches: Pitch[];
-  beats: Beats;
+  dur: Dur;
   /** The flash card this note came from, so mistakes can feed back into reviews. */
   card?: Card;
 }
 
-/** One 4/4 bar. A voice is either empty (staff not used) or adds up to 4 beats. */
+/** One bar. A voice is either empty (staff not used) or adds up to the bar's beats. */
 export type Measure = Record<Clef, PhraseNote[]>;
 
 export interface Phrase {
   staff: StaffKind;
   /** Key signature the phrase is written in. */
   key: string;
+  /** Quarter-note beats per bar (the time signature is beats/4). */
+  beats: number;
   measures: Measure[];
 }
 
 /** Something to play: every note that starts at the same moment, across both hands. */
 export interface PhraseEvent {
   measure: number;
+  /** Beat within the bar. */
   beat: number;
+  /** Beats from the start of the phrase. */
+  time: number;
   pitches: Pitch[];
   cards: Card[];
 }
@@ -95,12 +99,12 @@ export function phraseEvents(phrase: Phrase): PhraseEvent[] {
       let beat = 0;
       for (const n of m[clef]) {
         if (n.pitches.length) {
-          const e = byBeat.get(beat) ?? { measure: mi, beat, pitches: [], cards: [] };
+          const e = byBeat.get(beat) ?? { measure: mi, beat, time: mi * phrase.beats + beat, pitches: [], cards: [] };
           e.pitches.push(...n.pitches);
           if (n.card && !e.cards.includes(n.card)) e.cards.push(n.card);
           byBeat.set(beat, e);
         }
-        beat += n.beats;
+        beat += n.dur;
       }
     }
     events.push(...[...byBeat.values()].sort((a, b) => a.beat - b.beat));
@@ -108,18 +112,19 @@ export function phraseEvents(phrase: Phrase): PhraseEvent[] {
   return events;
 }
 
-const note = (card: Card, clef: Clef, beats: Beats): PhraseNote => ({ pitches: card.hands[clef], beats, card });
-const rest = (beats: Beats): PhraseNote => ({ pitches: [], beats });
+const note = (card: Card, clef: Clef, dur: Dur): PhraseNote => ({ pitches: card.hands[clef].length ? card.hands[clef] : card.notes, dur, card });
+const rest = (dur: Dur): PhraseNote => ({ pitches: [], dur });
 
-/** Single-staff phrase of quarter notes; the last bar is padded with rests. */
-export function singleStaffPhrase(cards: Card[], clef: Clef, key = 'C'): Phrase {
-  const measures: Measure[] = [];
-  for (let i = 0; i < cards.length; i += 4) {
-    const voice: PhraseNote[] = cards.slice(i, i + 4).map((c) => ({ pitches: c.notes, beats: 1, card: c }));
-    while (voice.length < 4) voice.push(rest(1));
-    measures.push(clef === 'treble' ? { treble: voice, bass: [] } : { treble: [], bass: voice });
-  }
-  return { staff: clef, key, measures };
+/** Plain quarter notes, for phrases that aren't practising rhythm. */
+export const QUARTERS = (beats: number): RhythmPattern => ({ beats, notes: Array.from({ length: beats }, () => ({ dur: 1 as Dur })) });
+
+/** Single-staff phrase: one bar per rhythm pattern, each note drawn from `next`. */
+export function singleStaffPhrase(next: () => Card, clef: Clef, patterns: RhythmPattern[], key = 'C'): Phrase {
+  const measures: Measure[] = patterns.map((p) => {
+    const voice = p.notes.map((n) => (n.rest ? rest(n.dur) : note(next(), clef, n.dur)));
+    return clef === 'treble' ? { treble: voice, bass: [] } : { treble: [], bass: voice };
+  });
+  return { staff: clef, key, beats: patterns[0]?.beats ?? 4, measures };
 }
 
 export type GrandStyle = 'mixed' | 'melody' | 'bass-melody' | 'alternate' | 'together';
@@ -133,17 +138,25 @@ export interface GrandPools {
   both: Card[];
 }
 
+/** Long notes filling a bar: a whole note or two halves in 4/4, a dotted half in 3/4, a half in 2/4. */
+function heldNotes(draw: () => Card, clef: Clef, beats: number, rnd: () => number): PhraseNote[] {
+  if (beats === 4) return rnd() < 0.5 ? [note(draw(), clef, 4)] : [note(draw(), clef, 2), note(draw(), clef, 2)];
+  if (beats === 3) return [note(draw(), clef, 3)];
+  if (beats === 2) return [note(draw(), clef, 2)];
+  return Array.from({ length: beats }, () => note(draw(), clef, 1));
+}
+
 /**
- * Two-handed phrase on the grand staff. Bar patterns:
- * - melody: RH quarter notes over a held LH whole note or two half notes
+ * Two-handed phrase on the grand staff, one bar per rhythm pattern. Bar styles:
+ * - melody: the pattern in the RH over held LH notes
  * - bass-melody: the same with the hands swapped
- * - alternate: the melody passes between the hands, one note per beat
- * - together: both hands on every beat
+ * - alternate: the pattern's notes pass between the hands
+ * - together: both hands play the pattern
  */
 export function grandStaffPhrase(
   pools: GrandPools,
   states: Record<string, CardState>,
-  measureCount: number,
+  patterns: RhythmPattern[],
   style: GrandStyle,
   rnd: () => number = Math.random,
   melodic = false,
@@ -164,41 +177,48 @@ export function grandStaffPhrase(
     for (const [s, w] of mixed) if ((r -= w) < 0) return s;
     return 'melody';
   };
-  const held = (draw: () => Card, clef: Clef): PhraseNote[] =>
-    rnd() < 0.5 ? [note(draw(), clef, 4)] : [note(draw(), clef, 2), note(draw(), clef, 2)];
 
-  const measures: Measure[] = [];
-  for (let i = 0; i < measureCount; i++) {
+  const measures: Measure[] = patterns.map((p) => {
     const s = pickStyle();
+    const played = p.notes.filter((n) => !n.rest).length;
     if (s === 'melody') {
-      measures.push({ treble: [1, 2, 3, 4].map(() => note(rh(), 'treble', 1)), bass: held(lh, 'bass') });
-    } else if (s === 'bass-melody') {
-      measures.push({ treble: held(rh, 'treble'), bass: [1, 2, 3, 4].map(() => note(lh(), 'bass', 1)) });
-    } else if (s === 'alternate') {
-      // Each hand gets at least one beat.
-      let hands = [0, 1, 2, 3].map(() => (rnd() < 0.5 ? 'treble' : 'bass'));
-      if (hands.every((h) => h === hands[0])) hands = hands.map((h, k) => (k === 3 ? (h === 'treble' ? 'bass' : 'treble') : h));
-      measures.push({
-        treble: hands.map((h) => (h === 'treble' ? note(rh(), 'treble', 1) : rest(1))),
-        bass: hands.map((h) => (h === 'bass' ? note(lh(), 'bass', 1) : rest(1))),
-      });
-    } else {
-      const treble: PhraseNote[] = [];
-      const bass: PhraseNote[] = [];
-      for (let b = 0; b < 4; b++) {
-        if (both && rnd() < 0.5) {
-          const c = both();
-          treble.push(note(c, 'treble', 1));
-          bass.push(note(c, 'bass', 1));
-        } else {
-          treble.push(note(rh(), 'treble', 1));
-          bass.push(note(lh(), 'bass', 1));
-        }
-      }
-      measures.push({ treble, bass });
+      return { treble: p.notes.map((n) => (n.rest ? rest(n.dur) : note(rh(), 'treble', n.dur))), bass: heldNotes(lh, 'bass', p.beats, rnd) };
     }
-  }
-  return { staff: 'grand', key, measures };
+    if (s === 'bass-melody') {
+      return { treble: heldNotes(rh, 'treble', p.beats, rnd), bass: p.notes.map((n) => (n.rest ? rest(n.dur) : note(lh(), 'bass', n.dur))) };
+    }
+    if (s === 'alternate' && played >= 2) {
+      // Each hand gets at least one note.
+      let hands = p.notes.map(() => (rnd() < 0.5 ? 'treble' : 'bass'));
+      const playedHands = hands.filter((_, i) => !p.notes[i].rest);
+      if (playedHands.every((h) => h === playedHands[0])) {
+        const last = p.notes.map((n) => !n.rest).lastIndexOf(true);
+        hands = hands.map((h, i) => (i === last ? (h === 'treble' ? 'bass' : 'treble') : h));
+      }
+      return {
+        treble: p.notes.map((n, i) => (!n.rest && hands[i] === 'treble' ? note(rh(), 'treble', n.dur) : rest(n.dur))),
+        bass: p.notes.map((n, i) => (!n.rest && hands[i] === 'bass' ? note(lh(), 'bass', n.dur) : rest(n.dur))),
+      };
+    }
+    // Hands together (also used for "alternate" bars with only one note).
+    const treble: PhraseNote[] = [];
+    const bass: PhraseNote[] = [];
+    for (const n of p.notes) {
+      if (n.rest) {
+        treble.push(rest(n.dur));
+        bass.push(rest(n.dur));
+      } else if (both && rnd() < 0.5) {
+        const c = both();
+        treble.push(note(c, 'treble', n.dur));
+        bass.push(note(c, 'bass', n.dur));
+      } else {
+        treble.push(note(rh(), 'treble', n.dur));
+        bass.push(note(lh(), 'bass', n.dur));
+      }
+    }
+    return { treble, bass };
+  });
+  return { staff: 'grand', key, beats: patterns[0]?.beats ?? 4, measures };
 }
 
 export type DrawnAccidental = '#' | 'b' | 'n' | null;

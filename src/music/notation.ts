@@ -1,7 +1,8 @@
-import { Accidental, Formatter, Renderer, Stave, StaveConnector, StaveNote, Voice } from 'vexflow/bravura';
+import { Accidental, Beam, Dot, Formatter, Renderer, Stave, StaveConnector, StaveNote, Voice } from 'vexflow/bravura';
 import type { Card } from '../srs/deck';
 import { accidentalInKey, type Clef, type Pitch, sortPitches, vexKey } from './notes';
-import { accidentalsToDraw, eventKey, type Beats, type DrawnAccidental, type Phrase, type PhraseEvent } from './phrase';
+import { accidentalsToDraw, eventKey, type DrawnAccidental, type Phrase, type PhraseEvent } from './phrase';
+import type { Dur, RhythmPattern } from './rhythm';
 
 export const COLORS = {
   ink: '#1b1b1b',
@@ -29,20 +30,28 @@ function prepare(el: HTMLElement, width: number, height: number) {
 
 type Ctx = ReturnType<typeof prepare>;
 
-const DURATION: Record<Beats, string> = { 1: 'q', 2: 'h', 4: 'w' };
-// Where rests sit: the whole rest hangs from the 4th line, others are centred.
-const REST_KEY: Record<Clef, Record<Beats, string>> = {
-  treble: { 1: 'b/4', 2: 'b/4', 4: 'd/5' },
-  bass: { 1: 'd/3', 2: 'd/3', 4: 'f/3' },
+const DURATION: Record<Dur, { duration: string; dots: number }> = {
+  0.5: { duration: '8', dots: 0 },
+  1: { duration: 'q', dots: 0 },
+  1.5: { duration: 'q', dots: 1 },
+  2: { duration: 'h', dots: 0 },
+  3: { duration: 'h', dots: 1 },
+  4: { duration: 'w', dots: 0 },
 };
+// Where rests sit: the whole rest hangs from the 4th line, others are centred.
+const REST_KEY: Record<Clef, string> = { treble: 'b/4', bass: 'd/3' };
+const WHOLE_REST_KEY: Record<Clef, string> = { treble: 'd/5', bass: 'f/3' };
 
-function makeNote(pitches: Pitch[], clef: Clef, beats: Beats, accs: DrawnAccidental[], color: string): StaveNote {
-  if (!pitches.length) return new StaveNote({ clef, keys: [REST_KEY[clef][beats]], duration: `${DURATION[beats]}r` });
-  const note = new StaveNote({ clef, keys: sortPitches(pitches).map(vexKey), duration: DURATION[beats], auto_stem: true });
+function makeNote(pitches: Pitch[], clef: Clef, dur: Dur, accs: DrawnAccidental[], color: string, stemUp = false): StaveNote {
+  const { duration, dots } = DURATION[dur];
+  const note = pitches.length
+    ? new StaveNote({ clef, keys: sortPitches(pitches).map(vexKey), duration, dots, auto_stem: !stemUp, stem_direction: stemUp ? 1 : undefined })
+    : new StaveNote({ clef, keys: [dur === 4 ? WHOLE_REST_KEY[clef] : REST_KEY[clef]], duration: `${duration}r`, dots });
+  if (dots) Dot.buildAndAttach([note], { all: true });
   accs.forEach((a, i) => {
     if (a) note.addModifier(new Accidental(a), i);
   });
-  note.setStyle({ fillStyle: color, strokeStyle: color });
+  if (pitches.length) note.setStyle({ fillStyle: color, strokeStyle: color });
   return note;
 }
 
@@ -50,13 +59,30 @@ function connect(ctx: Ctx, top: Stave, bottom: Stave, type: 'brace' | 'singleLef
   new StaveConnector(top, bottom).setType(type).setContext(ctx).draw();
 }
 
-/** Draw voices on their staves, formatted together so simultaneous notes line up. */
-function drawVoices(ctx: Ctx, parts: { stave: Stave; notes: StaveNote[] }[]) {
-  const voices = parts.map((p) => new Voice({ num_beats: 4, beat_value: 4 }).setStrict(false).addTickables(p.notes));
+/** Draw voices on their staves, formatted together so simultaneous notes line up. Eighth notes are beamed. */
+function drawVoices(ctx: Ctx, parts: { stave: Stave; notes: StaveNote[] }[], beats = 4, stemUp = false) {
+  const beams = parts.flatMap((p) => Beam.generateBeams(p.notes, stemUp ? { stem_direction: 1 } : {}));
+  const voices = parts.map((p) => new Voice({ num_beats: beats, beat_value: 4 }).setStrict(false).addTickables(p.notes));
   const f = new Formatter();
   voices.forEach((v) => f.joinVoices([v]));
   f.formatToStave(voices, parts[0].stave);
   voices.forEach((v, i) => v.draw(ctx, parts[i].stave));
+  beams.forEach((b) => b.setContext(ctx).draw());
+}
+
+/** A rhythm on a single line (rhythm cards). `colors` optionally colours each sounding note, e.g. to show which taps landed. */
+export function renderRhythm(el: HTMLElement, pattern: RhythmPattern, colors: string[] = []): void {
+  const width = 260;
+  const ctx = prepare(el, width, 130);
+  const stave = new Stave(10, 25, width - 20).addTimeSignature(`${pattern.beats}/4`);
+  stave.setConfigForLines([0, 1, 2, 3, 4].map((i) => ({ visible: i === 2 })));
+  stave.setEndBarType(3);
+  stave.setContext(ctx).draw();
+  let k = 0;
+  const notes = pattern.notes.map((n) =>
+    makeNote(n.rest ? [] : [{ letter: 'B', acc: '', octave: 4 }], 'treble', n.dur, [], n.rest ? COLORS.ink : (colors[k++] ?? COLORS.ink), true),
+  );
+  drawVoices(ctx, [{ stave, notes }], pattern.beats, true);
 }
 
 const accsInKey = (ps: Pitch[], key: string): DrawnAccidental[] => sortPitches(ps).map((p) => accidentalInKey(p, key));
@@ -116,7 +142,7 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
         st.addClef(clef);
         if (phrase.key !== 'C') st.addKeySignature(phrase.key);
       }
-      if (mi === 0) st.addTimeSignature('4/4');
+      if (mi === 0) st.addTimeSignature(`${phrase.beats}/4`);
       if (mi === n - 1) st.setEndBarType(3); // final double bar
       return st.setContext(ctx).draw();
     });
@@ -136,13 +162,14 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
         let beat = 0;
         const notes = voice.map((v, j) => {
           const idx = eventIndex.get(eventKey(mi, beat));
-          beat += v.beats;
+          beat += v.dur;
           const mark = idx === undefined ? 'pending' : (marks[idx] ?? 'pending');
           const color = mark === 'current' ? COLORS.current : mark === 'ok' ? COLORS.ok : mark === 'miss' ? COLORS.miss : COLORS.ink;
-          return makeNote(v.pitches, clef, v.beats, accs[j], color);
+          return makeNote(v.pitches, clef, v.dur, accs[j], color);
         });
         return { stave: staves[si], notes };
       }),
+      phrase.beats,
     );
   });
 }

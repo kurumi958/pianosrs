@@ -1,3 +1,5 @@
+import { QUARTERS } from '../music/phrase';
+import type { RhythmPattern } from '../music/rhythm';
 import { withKey } from './cards';
 import { type Card, CARD_BY_ID, type DeckDef, DECKS } from './deck';
 import type { CardState } from './scheduler';
@@ -98,4 +100,21 @@ export function cardsInKey(cards: Card[], key: string): Card[] {
     if (k) out.set(k.id, CARD_BY_ID.get(k.id) ?? k);
   }
   return [...out.values()];
+}
+
+/** Rhythm patterns from rhythm cards you know, for giving sight-reading phrases real rhythms. */
+export function learnedRhythms(known: Card[]): RhythmPattern[] {
+  return known.filter((c) => c.rhythm).map((c) => c.rhythm!);
+}
+
+/**
+ * Rhythms for a phrase of `bars` bars: one time signature, chosen among the learned patterns, with a pattern per bar.
+ * Without learned rhythms, plain quarter notes in 4/4.
+ */
+export function phraseRhythms(learned: RhythmPattern[], bars: number, rnd: () => number = Math.random): RhythmPattern[] {
+  if (!learned.length) return Array.from({ length: bars }, () => QUARTERS(4));
+  const meters = [...new Set(learned.map((p) => p.beats))];
+  const beats = meters[Math.floor(rnd() * meters.length)];
+  const options = learned.filter((p) => p.beats === beats);
+  return Array.from({ length: bars }, () => options[Math.floor(rnd() * options.length)]);
 }

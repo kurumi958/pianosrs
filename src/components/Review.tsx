@@ -10,6 +10,8 @@ import { countQueue, pickNext, type QueuePick } from '../srs/session';
 import { type AppData, dayKey } from '../storage';
 import { useHeldNotes, useNoteEvents } from '../hooks';
 import { CardStaff } from './Staff';
+import { RhythmTrial } from './RhythmTrial';
+import { describeTaps, type TapResult } from '../music/rhythm';
 import { Piano } from './Piano';
 
 interface Props {
@@ -34,6 +36,7 @@ export function Review({ data, update, onChooseDecks }: Props) {
   const [wrongNotes, setWrongNotes] = useState<number[]>([]);
   const [chosen, setChosen] = useState<Grade>(1);
   const [lastMs, setLastMs] = useState(0);
+  const [detail, setDetail] = useState('');
   const [undo, setUndo] = useState<Undo | null>(null);
   const [reviewedNow, setReviewedNow] = useState(0);
   const shownAt = useRef(0);
@@ -98,8 +101,26 @@ export function Review({ data, update, onChooseDecks }: Props) {
     if (pick === null && phase !== 'question') showNext();
   }, [pick, phase, showNext]);
 
+  /** Rhythm cards grade themselves when the bar ends. */
+  const onRhythmDone = (grade: Grade, result: TapResult, beatMs: number) => {
+    if (!pick || phase !== 'question') return;
+    const ms = performance.now() - shownAt.current;
+    const timing = describeTaps(result) || 'no taps';
+    setLastMs(ms);
+    setChosen(grade);
+    setDetail(timing);
+    if (grade === 1) {
+      setPhase('wrong');
+      return;
+    }
+    setPhase('correct');
+    commit(pick, grade, ms);
+    // Leave a moment to see which notes landed.
+    advanceTimer.current = window.setTimeout(() => setPick(null), Math.max(1200, beatMs * 2));
+  };
+
   useNoteEvents((e) => {
-    if (e.type !== 'on' || !pick || !matcher.current) return;
+    if (e.type !== 'on' || !pick || !matcher.current || pick.card.rhythm) return;
     const result = matcher.current.noteOn(e.note);
     if (phase === 'question') {
       const ms = performance.now() - shownAt.current;
@@ -215,10 +236,14 @@ export function Review({ data, update, onChooseDecks }: Props) {
         {undo && phase === 'question' && <button className="small" onClick={doUndo}>Undo</button>}
       </div>
 
-      <CardStaff card={pick.card} color={color} />
+      {pick.card.rhythm ? (
+        <RhythmTrial pattern={pick.card.rhythm} bpm={data.settings.rhythmBpm} latencyMs={data.settings.latencyMs} onDone={onRhythmDone} />
+      ) : (
+        <CardStaff card={pick.card} color={color} />
+      )}
 
       <div className={`feedback ${phase}`}>
-        {phase === 'question' && (
+        {phase === 'question' && !pick.card.rhythm && (
           <span className="muted">
             {pick.card.prompt === 'key'
               ? 'Which major key is this? Play its tonic (any octave)'
@@ -227,10 +252,11 @@ export function Review({ data, update, onChooseDecks }: Props) {
         )}
         {phase === 'correct' && (
           <span>
-            ✓ {cardLabel(pick.card)} · {(lastMs / 1000).toFixed(1)}s · {GRADE_LABELS[chosen]}
+            ✓ {pick.card.rhythm ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`} · {GRADE_LABELS[chosen]}
           </span>
         )}
-        {phase === 'wrong' && (
+        {phase === 'wrong' && pick.card.rhythm && <span>✗ Not quite: {detail}. Press Continue, or tap any key to practise it again.</span>}
+        {phase === 'wrong' && !pick.card.rhythm && (
           <span>
             ✗ You played {wrongNotes.map(midiName).join(', ')} — it's <b>{cardLabel(pick.card)}</b>. Play it to continue.
           </span>
@@ -251,7 +277,13 @@ export function Review({ data, update, onChooseDecks }: Props) {
         </div>
       )}
 
-      <Piano showLabels={data.settings.showKeyLabels} held={held} answer={phase === 'wrong' ? target : []} wrong={wrongNotes} focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)} />
+      <Piano
+        showLabels={data.settings.showKeyLabels}
+        held={held}
+        answer={phase === 'wrong' ? target : []}
+        wrong={wrongNotes}
+        focus={target.length ? Math.round((Math.min(...target) + Math.max(...target)) / 2) : 60}
+      />
     </div>
   );
 }

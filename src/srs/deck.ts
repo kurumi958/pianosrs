@@ -10,7 +10,7 @@ import {
   parsePitch,
   toMidi,
 } from '../music/notes';
-import { type Card, makeCard, makeGrandCard, makeKeyCard, shuffle, uniqueById } from './cards';
+import { type Card, makeCard, makeGrandCard, makeKeyCard, makeRhythmCard, shuffle, uniqueById } from './cards';
 import { COURSES } from './course';
 
 export { type Card, type StaffKind, cardLabel, makeCard, makeGrandCard, mulberry32, STAFF_LABEL } from './cards';
@@ -116,6 +116,14 @@ function notesInKeys(keys: string[], seed: number): Card[] {
     const rh = naturalRange('E4', 'F5').filter(altered).map((p) => makeGrandCard([inKey(p)], [], key));
     const lh = naturalRange('G2', 'A3').filter(altered).map((p) => makeGrandCard([], [inKey(p)], key));
     return shuffle([...rh, ...lh], seed + k);
+  });
+}
+
+/** Rhythm cards from "beats: pattern, pattern; beats: ..." e.g. "4: q q h, w; 3: h." */
+function rhythms(spec: string): Card[] {
+  return spec.split(';').flatMap((group) => {
+    const [beats, patterns] = group.split(':');
+    return patterns.split(',').map((p) => makeRhythmCard(p, Number(beats)));
   });
 }
 
@@ -238,6 +246,41 @@ export const TOPIC_DECKS: DeckDef[] = [
     kind: 'topic',
     description: 'Root-position white-key triads.',
     cards: ordered(stacks('bass', 'F2', 'G3', TRIADS, 'D4'), [], 10),
+  },
+  {
+    id: 'rhythm-basics',
+    name: 'Rhythm: quarter, half & whole notes',
+    kind: 'topic',
+    description: 'Tap one-bar rhythms in 4/4 in time with the metronome.',
+    cards: rhythms('4: w, h h, q q q q, q q h, h q q, q h q'),
+  },
+  {
+    id: 'rhythm-three',
+    name: 'Rhythm: 3/4, 2/4 & dotted halves',
+    kind: 'topic',
+    description: 'Three and two beats in a bar, and the dotted half note.',
+    cards: rhythms('3: h., q q q, h q, q h; 4: h. q, q h.; 2: h, q q'),
+  },
+  {
+    id: 'rhythm-rests',
+    name: 'Rhythm: rests',
+    kind: 'topic',
+    description: 'Quarter and half rests — count through the silence.',
+    cards: rhythms('4: q qr q qr, qr q q q, h hr, q q hr, hr q q, q qr h; 3: q qr q, qr q q, h qr'),
+  },
+  {
+    id: 'rhythm-eighths',
+    name: 'Rhythm: eighth notes',
+    kind: 'topic',
+    description: 'Pairs and runs of eighth notes.',
+    cards: rhythms('4: e e q q q, q e e q q, q q e e q, q q q e e, e e e e q q, e e q e e q, e e e e h, h e e q, e e e e e e e e; 3: e e q q, q e e e e'),
+  },
+  {
+    id: 'rhythm-dotted',
+    name: 'Rhythm: dotted quarter notes',
+    kind: 'topic',
+    description: 'The dotted quarter and eighth: long-short.',
+    cards: rhythms('4: q. e q q, q. e h, q q. e q, h q. e, q. e q. e; 3: q. e q'),
   },
   {
     id: 'grand-chords',

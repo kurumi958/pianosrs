@@ -1,13 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import { accidentalInKey, KEY_SIGNATURES, midiName, parsePitch, toMidi, vexKey } from '../src/music/notes';
 import { withKey } from '../src/srs/cards';
-import { cardsInKey, courseProgress, knownCards, learnedKeys, studyCards } from '../src/srs/study';
+import { cardsInKey, courseProgress, knownCards, learnedKeys, phraseRhythms, studyCards } from '../src/srs/study';
 import type { CardState } from '../src/srs/scheduler';
 import { DEFAULT_SCHEDULER as cfg, newCardState, schedule } from '../src/srs/scheduler';
 import { ALL_CARDS, CARD_BY_ID, cardLabel, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
+import { gradeTaps, matchTaps, onsets, parseRhythm, rhythmSpec } from '../src/music/rhythm';
+import { TempoJudge } from '../src/music/tempo';
 import {
+  QUARTERS,
+  weightedSampler,
   accidentalsToDraw,
   generatePhrase,
   grandStaffPhrase,
@@ -162,28 +166,37 @@ describe('rhythmic phrases', () => {
   const treble = DECKS.find((d) => d.id === 'treble-staff')!.cards;
   const bass = DECKS.find((d) => d.id === 'bass-staff')!.cards;
   const both = DECKS.find((d) => d.id === 'grand-hands')!.cards.slice(0, 4);
-  const beats = (v: { beats: number }[]) => v.reduce((a, n) => a + n.beats, 0);
+  const total = (v: { dur: number }[]) => v.reduce((a, n) => a + n.dur, 0);
+  const pats = (specs: string[], beats: number) => specs.map((sp) => parseRhythm(sp, beats));
 
-  it('pads single-staff phrases to full bars', () => {
-    const p = singleStaffPhrase(treble.slice(0, 6), 'treble');
+  it('builds single-staff bars from rhythm patterns, with rests', () => {
+    const p = singleStaffPhrase(weightedSampler(treble, {}, mulberry32(1)), 'treble', pats(['q q h', 'q qr h'], 4));
     expect(p.measures).toHaveLength(2);
-    expect(p.measures[1].treble.map((n) => n.pitches.length)).toEqual([1, 1, 0, 0]);
-    expect(phraseEvents(p)).toHaveLength(6);
+    expect(p.measures[1].treble.map((n) => n.pitches.length)).toEqual([1, 0, 1]);
+    const ev = phraseEvents(p);
+    expect(ev.map((e) => e.time)).toEqual([0, 1, 2, 4, 6]);
   });
 
-  it('fills both voices of every grand-staff bar with four beats', () => {
-    for (const style of ['mixed', 'melody', 'bass-melody', 'alternate', 'together'] as GrandStyle[]) {
-      const p = grandStaffPhrase({ rh: treble, lh: bass, both }, {}, 12, style, mulberry32(3));
-      expect(p.measures).toHaveLength(12);
-      for (const m of p.measures) {
-        expect(beats(m.treble)).toBe(4);
-        expect(beats(m.bass)).toBe(4);
+  it('fills both voices of every grand-staff bar, in any meter', () => {
+    const meters: [string[], number][] = [
+      [['q q q q', 'e e q h', 'q. e h'], 4],
+      [['h.', 'q q q', 'e e q q'], 3],
+      [['q q', 'h'], 2],
+    ];
+    for (const [specs, beats] of meters)
+      for (const style of ['mixed', 'melody', 'bass-melody', 'alternate', 'together'] as GrandStyle[]) {
+        const patterns = Array.from({ length: 12 }, (_, i) => parseRhythm(specs[i % specs.length], beats));
+        const p = grandStaffPhrase({ rh: treble, lh: bass, both }, {}, patterns, style, mulberry32(3));
+        expect(p.beats).toBe(beats);
+        for (const m of p.measures) {
+          expect(total(m.treble)).toBe(beats);
+          expect(total(m.bass)).toBe(beats);
+        }
       }
-    }
   });
 
   it('merges notes that start together into one event', () => {
-    const p = grandStaffPhrase({ rh: treble, lh: bass, both: [] }, {}, 1, 'melody', mulberry32(1));
+    const p = grandStaffPhrase({ rh: treble, lh: bass, both: [] }, {}, [QUARTERS(4)], 'melody', mulberry32(1));
     const ev = phraseEvents(p);
     expect(ev).toHaveLength(4);
     expect(ev[0].beat).toBe(0);
@@ -192,12 +205,83 @@ describe('rhythmic phrases', () => {
   });
 
   it('uses both hands in alternating bars', () => {
-    const p = grandStaffPhrase({ rh: treble, lh: bass, both: [] }, {}, 20, 'alternate', mulberry32(9));
+    const patterns = Array.from({ length: 20 }, () => QUARTERS(4));
+    const p = grandStaffPhrase({ rh: treble, lh: bass, both: [] }, {}, patterns, 'alternate', mulberry32(9));
     for (const m of p.measures) {
       expect(m.treble.some((n) => n.pitches.length)).toBe(true);
       expect(m.bass.some((n) => n.pitches.length)).toBe(true);
-      expect(phraseEvents({ staff: 'grand', key: 'C', measures: [m] })).toHaveLength(4);
+      expect(phraseEvents({ staff: 'grand', key: 'C', beats: 4, measures: [m] })).toHaveLength(4);
     }
+  });
+
+  it('picks one meter per phrase from learned rhythms', () => {
+    const learned = pats(['q q h', 'w'], 4).concat(pats(['h.', 'q q q'], 3));
+    for (let seed = 0; seed < 10; seed++) {
+      const r = phraseRhythms(learned, 4, mulberry32(seed));
+      expect(new Set(r.map((p) => p.beats)).size).toBe(1);
+    }
+    expect(phraseRhythms([], 2)).toEqual([QUARTERS(4), QUARTERS(4)]);
+  });
+});
+
+describe('rhythm', () => {
+  it('parses patterns and rejects bars that do not add up', () => {
+    const p = parseRhythm('q. e qr q', 4);
+    expect(p.notes.map((n) => n.dur)).toEqual([1.5, 0.5, 1, 1]);
+    expect(onsets(p)).toEqual([0, 1.5, 3]);
+    expect(rhythmSpec(p)).toBe('q. e qr q');
+    expect(() => parseRhythm('q q', 4)).toThrow();
+    expect(() => parseRhythm('x', 1)).toThrow();
+  });
+  it('matches taps to onsets and grades timing', () => {
+    const beat = 1000;
+    const expected = [0, 1000, 2000];
+    expect(gradeTaps(matchTaps(expected, [10, 1020, 1990], 180), beat)).toBe(4);
+    expect(gradeTaps(matchTaps(expected, [100, 1120, 2100], 180), beat)).toBe(3);
+    expect(gradeTaps(matchTaps(expected, [170, 1170, 1830], 180), beat)).toBe(2);
+    const missed = matchTaps(expected, [0, 2000], 180);
+    expect(missed.errors).toEqual([0, null, 0]);
+    expect(gradeTaps(missed, beat)).toBe(1);
+    const extra = matchTaps(expected, [0, 500, 1000, 2000], 180);
+    expect(extra.extra).toBe(1);
+    expect(gradeTaps(extra, beat)).toBe(1);
+  });
+  it('builds rhythm cards and decks that parse', () => {
+    const c = CARD_BY_ID.get('rhythm:4/4:q. e h')!;
+    expect(c.prompt).toBe('rhythm');
+    expect(cardLabel(c)).toBe('4/4 rhythm (q. e h)');
+    expect(deckCards('rhythm-eighths').length).toBeGreaterThan(5);
+  });
+});
+
+describe('playing in time', () => {
+  const events = [
+    { at: 1000, pitches: [60] },
+    { at: 2000, pitches: [64, 48] },
+    { at: 3000, pitches: [67] },
+  ];
+  it('judges notes against the nearest beat', () => {
+    const j = new TempoJudge(events, 150);
+    expect(j.noteOn(60, 1040)).toEqual({ event: 0, right: true });
+    expect(j.status[0]).toBe('ok');
+    j.noteOn(48, 1980);
+    expect(j.status[1]).toBe('pending'); // chord needs both notes
+    j.noteOn(64, 2010);
+    expect(j.status[1]).toBe('ok');
+    expect(j.errors).toEqual([40, -20, null]);
+    expect(j.noteOn(65, 3000).right).toBe(false);
+    expect(j.status[2]).toBe('miss');
+    expect(j.noteOn(70, 2500).event).toBeNull();
+    expect(j.extra).toBe(1);
+  });
+  it('marks beats missed once their window passes', () => {
+    const j = new TempoJudge(events, 150);
+    expect(j.current(900)).toBe(0);
+    j.tick(1200);
+    expect(j.status[0]).toBe('miss');
+    expect(j.current(1200)).toBe(1);
+    expect(j.finished(3100)).toBe(false);
+    expect(j.finished(3200)).toBe(true);
   });
 });
 

@@ -1,5 +1,5 @@
 import { parsePitch } from '../music/notes';
-import { type Card, makeGrandCard } from './cards';
+import { type Card, makeGrandCard, makeRhythmCard } from './cards';
 import type { CourseUnit, DeckDef } from './deck';
 
 /**
@@ -18,6 +18,14 @@ function cards(spec: string, key = 'C'): Card[] {
     });
 }
 
+/** Rhythm cards: "4: q q h, w; 3: h." */
+function rhythms(spec: string): Card[] {
+  return spec.split(';').flatMap((group) => {
+    const [beats, patterns] = group.split(':');
+    return patterns.split(',').map((p) => makeRhythmCard(p, Number(beats)));
+  });
+}
+
 const unit = (id: string, title: string, summary: string, list: Card[]): CourseUnit => ({ id, title, summary, cards: list });
 
 /**
@@ -26,16 +34,20 @@ const unit = (id: string, title: string, summary: string, list: Card[]): CourseU
  * and note names before the staff is introduced, so the course starts at Unit 2.
  */
 const ADULT_BEGINNER_UNITS: CourseUnit[] = [
-  unit('u2', 'Unit 2 · Orientation to the staff', 'Middle C, D, E, F in the treble; middle C, B, A in the bass', cards('C4| |C4 D4| |B3 E4| |A3 F4|')),
+  unit('u2', 'Unit 2 · Orientation to the staff', 'Middle C, D, E, F in the treble; middle C, B, A in the bass; 4/4 and 3/4', [
+    ...cards('C4| |C4 D4| |B3 E4| |A3 F4|'),
+    // Unit 1's note values and Unit 2's time signatures, as rhythms to tap.
+    ...rhythms('4: q q q q, h h, w, q q h, h. q; 3: h., q q q'),
+  ]),
   unit('u3', 'Unit 3 · Reading reinforcement', 'Treble G (the G clef); bass G and F (the F clef)', cards('G4| |F3 |G3')),
   unit(
     'u4',
     'Unit 4 · More about staff reading',
-    '3rds on the staff and the C chord',
-    cards('C4+E4| |F3+A3 D4+F4| |G3+B3 E4+G4| |A3+C4 C4+E4+G4|'),
+    '3rds on the staff, the C chord, quarter and half rests',
+    [...cards('C4+E4| |F3+A3 D4+F4| |G3+B3 E4+G4| |A3+C4 C4+E4+G4|'), ...rhythms('4: q qr q qr, h hr, q q hr; 3: q q qr')],
   ),
   unit('u5', 'Unit 5 · More bass clef reading', 'Bass C, D, E and 3rds below middle C', cards('|C3 |D3 |E3 |C3+E3 |D3+F3 |E3+G3')),
-  unit('u6', 'Unit 6 · Ledger B, C and Csus4 chords', 'B below middle C; left-hand C and Csus4 chords', cards('B3| |C3+E3+G3 |C3+F3+G3 C4+F4+G4|')),
+  unit('u6', 'Unit 6 · Eighth notes', 'Eighth-note rhythms; B below middle C; C and Csus4 chords', [...cards('B3| |C3+E3+G3 |C3+F3+G3 C4+F4+G4|'), ...rhythms('4: e e q q q, q q e e q, e e e e h; 3: e e q q')]),
   unit('u7', 'Unit 7 · Treble space notes F-A-C-E', 'A, C and E in the treble spaces; the F chord', cards('A4| C5| E5| F4+A4+C5| |F3+A3+C4')),
   unit('u8', 'Unit 8 · Treble C pentascale', 'Treble C up to G: D, F and G above the middle line', cards('D5| F5| G5| C5+E5| E5+G5|')),
   unit(

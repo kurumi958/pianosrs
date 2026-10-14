@@ -9,6 +9,8 @@ export interface NoteEvent {
   note: number;
   velocity: number;
   source: InputSource;
+  /** performance.now() time of the event; MIDI events carry the device's own timestamp. */
+  time?: number;
 }
 type Listener = (e: NoteEvent) => void;
 
@@ -46,7 +48,8 @@ class InputHub {
     return () => this.statusListeners.delete(fn);
   }
 
-  emit(e: NoteEvent): void {
+  emit(event: NoteEvent): void {
+    const e = { ...event, time: event.time || performance.now() };
     if (e.type === 'on') {
       if (this.held.has(e.note) && e.source !== 'midi') return;
       this.held.add(e.note);
@@ -91,8 +94,9 @@ class InputHub {
     const cmd = data[0] & 0xf0;
     const note = data[1];
     const vel = data[2];
-    if (cmd === 0x90 && vel > 0) this.emit({ type: 'on', note, velocity: vel, source: 'midi' });
-    else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) this.emit({ type: 'off', note, velocity: 0, source: 'midi' });
+    const time = msg.timeStamp;
+    if (cmd === 0x90 && vel > 0) this.emit({ type: 'on', note, velocity: vel, source: 'midi', time });
+    else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) this.emit({ type: 'off', note, velocity: 0, source: 'midi', time });
   }
 
   /** A tiny synth so on-screen / typed notes are audible. */

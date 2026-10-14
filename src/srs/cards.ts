@@ -1,4 +1,5 @@
 import { type Clef, keyAccidental, type Pitch, pitchName, sortPitches, tonic } from '../music/notes';
+import { parseRhythm, type RhythmPattern, rhythmSpec } from '../music/rhythm';
 
 /** Which staff a card is drawn on. Grand-staff cards use both hands. */
 export type StaffKind = Clef | 'grand';
@@ -12,8 +13,12 @@ export interface Card {
   notes: Pitch[];
   /** Notes written on each staff (right hand = treble, left hand = bass). One side is empty for single-clef cards. */
   hands: Record<Clef, Pitch[]>;
-  /** "key": the card shows only a key signature and you answer with the key's tonic. */
-  prompt?: 'key';
+  /**
+   * "key": the card shows only a key signature and you answer with the key's tonic.
+   * "rhythm": the card shows a one-bar rhythm you tap in time after a count-in.
+   */
+  prompt?: 'key' | 'rhythm';
+  rhythm?: RhythmPattern;
   /** Accept the answer in any octave. */
   anyOctave?: boolean;
 }
@@ -44,6 +49,12 @@ export function makeGrandCard(treble: Pitch[], bass: Pitch[], key = 'C'): Card {
 /** "Which major key is this?" — shows a key signature on the grand staff; play the tonic in any octave. */
 export function makeKeyCard(key: string): Card {
   return { id: `keysig:${key}`, staff: 'grand', key, notes: [tonic(key, 4)], hands: { treble: [], bass: [] }, prompt: 'key', anyOctave: true };
+}
+
+/** A one-bar rhythm to tap on any key, e.g. makeRhythmCard("q q h", 4). */
+export function makeRhythmCard(spec: string, beats: number): Card {
+  const rhythm = parseRhythm(spec, beats);
+  return { id: `rhythm:${beats}/4:${rhythmSpec(rhythm)}`, staff: 'treble', key: 'C', notes: [], hands: { treble: [], bass: [] }, prompt: 'rhythm', rhythm };
 }
 
 /**
@@ -90,6 +101,7 @@ export function uniqueById(cards: Card[]): Card[] {
 
 export function cardLabel(card: Card): string {
   if (card.prompt === 'key') return `${card.key.replace('b', '♭').replace('#', '♯')} major`;
+  if (card.rhythm) return `${card.rhythm.beats}/4 rhythm (${rhythmSpec(card.rhythm)})`;
   const keyNote = card.key === 'C' ? '' : ` in ${card.key} major`;
   return baseLabel(card) + keyNote;
 }

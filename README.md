@@ -10,7 +10,14 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   straight away. Phrases can be treble only, bass only, or **two-handed on the grand staff**, with bar patterns for a right-hand
   melody over held left-hand notes (and the reverse), melodies passing between the hands, and hands together. *Stepwise* mode makes
   lines move mostly by steps and skips, like real melodies. Phrases can be written in any major key, or in a random key you've
-  studied: notes take the key signature, and accidentals within a bar are printed against it.
+  studied: notes take the key signature, and accidentals within a bar are printed against it. With *Rhythms* on, bars use the
+  rhythm patterns you've learned (one time signature per phrase). *Wait for me* mode waits for each note; *In time* mode
+  gives a one-bar count-in and keeps going with the metronome, judging every note on pitch and timing.
+- **Rhythm cards**: a one-bar rhythm on a single line. Press any key for a one-bar count-in, then tap the rhythm on any key
+  with the metronome. Every note must land within a quarter of a beat (80–180ms); the grade comes from how close you were.
+  Decks cover quarter/half/whole notes, 3/4 and 2/4 with dotted halves, rests, eighth notes and dotted quarters, and the
+  course introduces rhythms where the book does. MIDI timestamps and speaker latency are used for accuracy, and Settings has a
+  manual latency adjustment.
 - **Courses**: an *adult beginner course* that introduces notes unit by unit in the order of an adult method book
   (Faber's Adult Piano Adventures All-in-One Book 1, Units 2–16: first staff notes → bass C-D-E → treble spaces → G position →
   sharps and flats → intervals → scales → primary chords in C and G, with the G major key signature). The next unit opens once
@@ -66,6 +73,9 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/midi/input.ts` | Web MIDI, on-screen and computer-keyboard input hub |
 | `src/midi/matcher.ts` | Judges notes/chords played against the target |
 | `src/music/notation.ts` | Draws the staff with VexFlow |
+| `src/music/rhythm.ts` | Rhythm patterns, tap matching and grading |
+| `src/music/tempo.ts` | Judges a phrase played in time |
+| `src/midi/metronome.ts` | Metronome clicks on the Web Audio clock |
 | `src/music/phrase.ts` | Sight-reading phrases (single staff or two-handed), events to play, accidentals |
 | `src/components/*` | React screens |
 
@@ -74,6 +84,7 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Custom decks: build your own from a range of notes, clefs, keys and intervals
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
 - Minor keys
+- Ties, sixteenth notes, triplets, 6/8; judging note lengths (releases), not just onsets
 - FSRS scheduling as an option
 - Cloud sync between devices
 - Native Android build with a MIDI bridge plugin (see above)

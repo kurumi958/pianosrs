@@ -4,7 +4,7 @@ import { isMinor, midiName, toMidi } from '../music/notes';
 import { COLORS } from '../music/notation';
 import { type Card, cardLabel, COURSE_DECKS as COURSES } from '../srs/deck';
 import { courseProgress, studyCards } from '../srs/study';
-import { autoGrade, limitEasy } from '../srs/grading';
+import { autoGrade, gradeNewCard, limitEasy } from '../srs/grading';
 import { type CardState, formatDelay, type Grade, GRADE_LABELS, markKnown, schedule } from '../srs/scheduler';
 import { countQueue, pickNext, type QueuePick } from '../srs/session';
 import { type AppData, dayKey } from '../storage';
@@ -43,6 +43,8 @@ export function Review({ data, update, onNavigate }: Props) {
   const [lastMs, setLastMs] = useState(0);
   const [detail, setDetail] = useState('');
   const [markedKnown, setMarkedKnown] = useState(false);
+  /** The last Known came from playing a new card instantly, not the button. */
+  const [autoKnown, setAutoKnown] = useState(false);
   const [undo, setUndo] = useState<Undo | null>(null);
   const [reviewedNow, setReviewedNow] = useState(0);
   // Show the right keys on the keyboard after a wrong answer.
@@ -153,7 +155,16 @@ export function Review({ data, update, onNavigate }: Props) {
     if (phase === 'question') {
       const ms = performance.now() - shownAt.current;
       if (result === 'correct') {
-        const grade = limitEasy(autoGrade(true, ms, pick.card.notes.length, data.settings), pick.state.status, data.settings.easyWhileLearning);
+        // A new card's first answer is graded mostly on playing it right; speed counts from the next review on.
+        const graded = pick.isNew
+          ? gradeNewCard(true, ms, pick.card.notes.length, data.settings)
+          : limitEasy(autoGrade(true, ms, pick.card.notes.length, data.settings), pick.state.status, data.settings.easyWhileLearning);
+        if (graded === 'known') {
+          setLastMs(ms);
+          markAsKnown(true);
+          return;
+        }
+        const grade = graded;
         setLastMs(ms);
         setChosen(grade);
         setPhase('correct');
@@ -187,8 +198,9 @@ export function Review({ data, update, onNavigate }: Props) {
   });
 
   /** Known: a new card you can already read skips learning, and comes back in a few days to check. */
-  const markAsKnown = () => {
+  const markAsKnown = (auto = false) => {
     if (!pick || !pick.isNew || phase !== 'question') return;
+    setAutoKnown(auto);
     const now = Date.now();
     const day = dayKey(now);
     const { state, goods } = markKnown(pick.state, now, data.settings.srs);
@@ -358,7 +370,10 @@ export function Review({ data, update, onNavigate }: Props) {
         `Play the ${pick.card.notes.length > 1 ? 'notes' : 'note'}`
       )
     ) : phase === 'correct' && markedKnown ? (
-      <>✓ Marked as known. It'll come back in {knownPreview} to check.</>
+      <>
+        ✓ {autoKnown ? `Played in ${(lastMs / 1000).toFixed(1)}s, so it's marked as known` : 'Marked as known'}. It'll come back in {knownPreview} to
+        check.
+      </>
     ) : phase === 'correct' ? (
       <>✓ {pick.card.rhythm || pick.card.passage ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`}</>
     ) : pick.card.rhythm || pick.card.passage ? (
@@ -399,7 +414,7 @@ export function Review({ data, update, onNavigate }: Props) {
           preview={preview}
           onPick={setChosen}
           onContinue={phase === 'wrong' ? continueAfterWrong : undefined}
-          known={pick.isNew && (phase === 'question' || markedKnown) ? { preview: knownPreview, lit: markedKnown, onClick: markAsKnown } : undefined}
+          known={pick.isNew && (phase === 'question' || markedKnown) ? { preview: knownPreview, lit: markedKnown, onClick: () => markAsKnown() } : undefined}
         />
       }
     />

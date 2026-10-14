@@ -1760,3 +1760,113 @@ button.bar-cell:hover {
   border-color: var(--crown);
   color: var(--crown);
 }
+
+/* Grading settings: a number inside a sentence. */
+.inline-num {
+  width: 4.5em;
+  margin: 0 4px;
+  padding: 2px 6px;
+}
+
+/* Piano setup walkthrough. */
+.setup-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  border-color: color-mix(in srgb, var(--gold) 45%, var(--line));
+  background: color-mix(in srgb, var(--gold-soft) 45%, var(--sheet));
+}
+.setup-banner > span:first-child {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.steps button {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 12px 6px 6px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--sheet);
+  color: var(--ink-2);
+}
+.steps .step-num {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--sheet-2);
+  font: 600 0.75rem var(--mono);
+}
+.steps li.on button {
+  border-color: var(--crown);
+  color: var(--crown);
+  font-weight: 600;
+}
+.steps li.on .step-num {
+  background: var(--crown);
+  color: var(--crown-ink);
+}
+.steps li.done .step-num {
+  background: color-mix(in srgb, var(--sage) 25%, var(--sheet));
+  color: var(--sage);
+}
+.setup-step {
+  min-height: 260px;
+}
+.instrument-check {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sheet);
+  color: var(--muted);
+}
+.instrument-check > span {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+.instrument-check b {
+  color: var(--ink);
+}
+.instrument-check.ok {
+  border-color: color-mix(in srgb, var(--sage) 45%, var(--line));
+  color: var(--sage);
+}
+.note-readout {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  min-height: 110px;
+  border: 1px dashed var(--line-strong);
+  border-radius: 12px;
+  background: var(--score);
+}
+.note-readout b {
+  font: 600 2.6rem var(--display);
+  color: var(--crown);
+}
+.ok-text {
+  color: var(--sage);
+}
+.ready-list {
+  margin: 0;
+  padding-left: 1.2em;
+  line-height: 1.8;
+}

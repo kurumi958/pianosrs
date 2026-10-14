@@ -3,8 +3,9 @@
 Learn to read sheet music with spaced repetition (like Anki), using a real MIDI piano as the answer button.
 
 - **Review**: flash cards show a note, interval or chord on a treble, bass or grand staff. Play it on your keyboard. The app grades you
-  automatically: a wrong key counts as *Again*, and a right answer is *Easy*, *Good* or *Hard* depending on how fast you
-  played it. Scheduling uses **FSRS** (the default) or Anki's classic **SM-2**, with learning and relearning steps, daily
+  automatically: a wrong key counts as *Again*, and a right answer is *Easy*, *Good* or *Okay* (Anki's *Hard*) depending on how fast you
+  played it. The first time you see a new card, timing matters much less: Good within 5 seconds, Okay within 15, and an
+  answer within a second marks it Known (all adjustable). Speed is judged from its next review on. Scheduling uses **FSRS** (the default) or Anki's classic **SM-2**, with learning and relearning steps, daily
   new-card and review limits, and undo. New cards also have a **Known** button (as in JPDB) for notes you can already read: it counts as answering
   Good through the learning steps and once more, so the card comes back in a few days to check. All of Anki's scheduling options are in *Settings → Scheduling*: steps, desired
   retention and FSRS parameters (paste optimised ones from Anki), or SM-2's graduating/easy intervals, starting ease, easy
@@ -50,7 +51,7 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   IMSLP). Scores are engraved with [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org/). *Learn this song* turns it into
   passage flash cards in Review: each passage (1, 2, 4 or 8 bars) right hand, left hand, then hands together, then joined to
   the passage before, and finally the whole song. Passages grade themselves: more than one slip in ten notes is Again, any
-  slip is Hard, a clean run is Good, and a clean run without hesitating is Easy. You can also practice any bars, either hand,
+  slip is Okay, a clean run is Good, and a clean run without hesitating is Easy. You can also practice any bars, either hand,
   waiting for you or in time with a count-in and metronome; the bar strip shows which bars are learned and which keep tripping
   you up. Repeats are read once, as written; grace notes aren't judged.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
@@ -79,6 +80,10 @@ Firefox supports it with a permission prompt; Safari/iOS doesn't support it at a
 
 ## First test with your piano
 
+On first launch, Home offers a short **piano setup** (also in *Settings → MIDI → Run piano setup*): it checks the
+connection, that middle C arrives as middle C (not transposed), how many keys the keyboard has, and measures your timing
+offset by tapping along with clicks.
+
 Each deck group on the **Decks** page starts with a small *Test deck*, and **Lessons** has a three-unit *Test course*. Their
 cards have their own progress (ids starting with `test:`), so practicing them never touches your real cards; use *reset* to
 start a test again. A quick run-through:
@@ -86,7 +91,7 @@ start a test again. A quick run-through:
 1. Plug the piano in (USB, or USB-OTG on Android), open the app in Chrome, allow MIDI. The sidebar should show the device name.
 2. Turn on all five test decks and the test course, then **Review**: notes in both clefs and on ledger lines, both hands at
    once, chords, sharps and flats, key signatures (play the tonic anywhere), and rhythm cards (tap with the metronome).
-3. Check the grades feel fair: fast right answers Easy, slower ones Good or Hard. Adjust the thresholds in **Settings**.
+3. Check the grades feel fair: fast right answers Easy, slower ones Good or Okay. Adjust the thresholds in **Settings**.
 4. Rhythm cards: if results say you're consistently "a bit late" (or early), set **Settings → Latency adjustment** by about
    that many milliseconds.
 5. **Sight-read** in both modes, on the grand staff, with *Learned rhythms* on, and try *In time* at a slow tempo.
@@ -137,6 +142,7 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
 - Optimising FSRS parameters from your own review history (today: paste them from Anki)
 - Per-deck scheduling presets, leeches and suspending cards
+- Imported songs: include them in *Export backup* (today they live only in the browser that imported them)
 - Judging note lengths (releases), not just onsets; pedalling
 - Songs: playing repeats and voltas as performed; a bigger CC0 corpus (OpenScore, Mutopia); looping a passage while
   speeding it up

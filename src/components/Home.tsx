@@ -25,12 +25,30 @@ export function Home({ data, update, onNavigate }: Props) {
     });
 
   const title = (
-    <header className="home-title">
-      <h1>
-        <span className="clef">𝄞</span> PianoSRS
-      </h1>
-      <p>{dateLine()}</p>
-    </header>
+    <>
+      <header className="home-title">
+        <h1>
+          <span className="clef">𝄞</span> PianoSRS
+        </h1>
+        <p>{dateLine()}</p>
+      </header>
+      {!data.settings.setupDone && (
+        <section className="panel setup-banner">
+          <span>
+            <b>First time here? Set up your piano.</b>
+            <small className="muted">Connect it, check it sends the right notes and its size, and calibrate timing. About two minutes.</small>
+          </span>
+          <span className="row">
+            <button className="small link" onClick={() => update((d) => void (d.settings.setupDone = true))}>
+              Not now
+            </button>
+            <button className="primary" onClick={() => onNavigate('Setup')}>
+              Set up
+            </button>
+          </span>
+        </section>
+      )}
+    </>
   );
 
   if (!plan.hasDecks) {

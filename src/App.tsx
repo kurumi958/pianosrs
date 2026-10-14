@@ -12,12 +12,13 @@ import { Stats } from './components/Stats';
 import { Settings } from './components/Settings';
 import { WorkOn } from './components/WorkOn';
 import { Sidebar } from './components/Sidebar';
+import { Setup } from './components/Setup';
 import type { Focus } from './srs/weak';
 import { type SongFocus, Songs } from './components/Songs';
 import { SongPractice } from './components/SongPlay';
 import { loadImportedSongs, songById, syncSongDecks } from './songs/library';
 
-export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Songs' | 'Stats' | 'Settings';
+export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Songs' | 'Stats' | 'Settings' | 'Setup';
 
 /** Screens you play on: these use the practice layout with the keyboard. */
 const PLAY_TABS: Tab[] = ['Review', 'Sight-read'];
@@ -183,7 +184,8 @@ export function App() {
             <Songs data={data} update={update} openSong={openSong} onOpen={setOpenSong} onPractice={practiceSongBars} onLibraryChange={libraryChanged} />
           ))}
         {tab === 'Stats' && <Stats data={data} />}
-        {tab === 'Settings' && <Settings data={data} update={update} replace={replace} />}
+        {tab === 'Settings' && <Settings data={data} update={update} replace={replace} onSetup={() => navigate('Setup')} />}
+        {tab === 'Setup' && <Setup data={data} update={update} onFinish={() => navigate('Home')} />}
       </main>
 
       {!portraitOk && (

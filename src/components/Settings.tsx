@@ -8,9 +8,11 @@ interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
   replace: (d: AppData) => void;
+  /** Open the piano setup walkthrough. */
+  onSetup: () => void;
 }
 
-export function Settings({ data, update, replace }: Props) {
+export function Settings({ data, update, replace, onSetup }: Props) {
   const midi = useMidiStatus();
   const file = useRef<HTMLInputElement>(null);
   const s = data.settings;
@@ -55,7 +57,12 @@ export function Settings({ data, update, replace }: Props) {
         </label>
       </section>
       <section className="panel stack">
-        <h3>MIDI</h3>
+        <div className="row spread">
+          <h3>MIDI</h3>
+          <button className="small" onClick={onSetup}>
+            Run piano setup
+          </button>
+        </div>
       {!midi.supported ? (
         <p className="warn">
           This browser doesn't support Web MIDI. Use Chrome or Edge (desktop or Android). You can still use the on-screen piano or your
@@ -101,12 +108,13 @@ export function Settings({ data, update, replace }: Props) {
       <section className="panel stack">
         <h3>Answer grading</h3>
       <p className="muted small">A right answer is graded by how quickly you play it. A wrong note is always "Again".</p>
+      <h4>Cards you've seen before</h4>
       <label className="field">
         "Easy" if answered within (seconds)
         <input type="number" min={0.3} step={0.1} value={s.easyMs / 1000} onChange={(e) => set('easyMs', Number(e.target.value) * 1000)} />
       </label>
       <label className="field">
-        "Good" if answered within (seconds), slower is "Hard"
+        "Good" if answered within (seconds), slower is "Okay"
         <input type="number" min={1} step={0.5} value={s.goodMs / 1000} onChange={(e) => set('goodMs', Number(e.target.value) * 1000)} />
       </label>
       <p className="muted small">
@@ -116,6 +124,40 @@ export function Settings({ data, update, replace }: Props) {
       <label className="check">
         <input id="set-easy-learning" type="checkbox" checked={s.easyWhileLearning} onChange={(e) => set('easyWhileLearning', e.target.checked)} />
         Allow Easy on new and learning cards (off: they top out at Good, so a lucky first answer doesn't skip the learning steps)
+      </label>
+      <h4>New cards (the first time you see one)</h4>
+      <p className="muted small">
+        You have to look at a new card, work it out and then play it, so it's graded mostly on playing it right. Speed counts from its
+        next review on.
+      </p>
+      <label className="field">
+        "Good" if answered within (seconds)
+        <input id="set-new-good" type="number" min={1} step={0.5} value={s.newGoodMs / 1000} onChange={(e) => set('newGoodMs', Number(e.target.value) * 1000)} />
+      </label>
+      <label className="field">
+        "Okay" if answered within (seconds), slower is "Again"
+        <input id="set-new-okay" type="number" min={2} step={1} value={s.newOkayMs / 1000} onChange={(e) => set('newOkayMs', Number(e.target.value) * 1000)} />
+      </label>
+      <label className="check">
+        <input
+          id="set-auto-known"
+          type="checkbox"
+          checked={s.autoKnownMs > 0}
+          onChange={(e) => set('autoKnownMs', e.target.checked ? 1000 : 0)}
+        />
+        Mark a new card as Known when you play it right within
+        <input
+          id="set-auto-known-ms"
+          className="inline-num"
+          type="number"
+          min={0.3}
+          max={5}
+          step={0.1}
+          disabled={s.autoKnownMs === 0}
+          value={(s.autoKnownMs || 1000) / 1000}
+          onChange={(e) => set('autoKnownMs', Math.round(Number(e.target.value) * 1000))}
+        />
+        s (you could already read it)
       </label>
       </section>
       <SchedulingSettings data={data} update={update} />

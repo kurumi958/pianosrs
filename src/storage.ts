@@ -26,6 +26,15 @@ export interface Settings {
   srs: SrsSettings;
   easyMs: number;
   goodMs: number;
+  /** New cards (first answer): Good within this long, Okay within newOkayMs, slower is Again. */
+  newGoodMs: number;
+  newOkayMs: number;
+  /** A new card answered right this fast is marked Known (0 = off). */
+  autoKnownMs: number;
+  /** The piano setup walkthrough has been finished (or skipped). */
+  setupDone: boolean;
+  /** Lowest and highest keys found during setup (MIDI), if checked. */
+  keyboardRange?: [number, number];
   /** Allow Easy on new, learning and relearning cards (off: they top out at Good). */
   easyWhileLearning: boolean;
   /** Accept the right note in any octave (handy for small 25/32-key controllers). */
@@ -65,6 +74,10 @@ export const DEFAULT_SETTINGS: Settings = {
   easyMs: 1000,
   goodMs: 5000,
   easyWhileLearning: false,
+  newGoodMs: 5000,
+  newOkayMs: 15000,
+  autoKnownMs: 1000,
+  setupDone: false,
   ignoreOctave: false,
   phraseLength: 8,
   sightClef: 'treble',

@@ -216,7 +216,7 @@ export function SchedulingSettings({ data, update }: Props) {
           <Num id="srs-ease" label="Starting ease" value={srs.startingEase} min={1.3} max={5} step={0.05} onChange={(v) => set('startingEase', v)} />
           <Num id="srs-bonus" label="Easy bonus" value={srs.easyBonus} min={1} max={5} step={0.05} onChange={(v) => set('easyBonus', v)} />
           <Num id="srs-modifier" label="Interval modifier" value={srs.intervalModifier} min={0.5} max={2} step={0.05} onChange={(v) => set('intervalModifier', v)} />
-          <Num id="srs-hard" label="Hard interval" value={srs.hardMultiplier} min={1} max={3} step={0.05} onChange={(v) => set('hardMultiplier', v)} />
+          <Num id="srs-hard" label="Okay interval" hint="Anki's Hard interval" value={srs.hardMultiplier} min={1} max={3} step={0.05} onChange={(v) => set('hardMultiplier', v)} />
           <Num
             id="srs-lapse"
             label="New interval"

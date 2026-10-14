@@ -205,3 +205,23 @@ describe('playing songs', () => {
     expect(weakBars(undefined)).toEqual([]);
   });
 });
+
+describe('new cards', () => {
+  it('grade the first answer on playing it right, not speed', async () => {
+    const { gradeNewCard } = await import('../src/srs/grading');
+    const cfg = { newGoodMs: 5000, newOkayMs: 15000, autoKnownMs: 1000 };
+    expect(gradeNewCard(false, 500, 1, cfg)).toBe(1);
+    expect(gradeNewCard(true, 800, 1, cfg)).toBe('known');
+    expect(gradeNewCard(true, 1200, 1, cfg)).toBe(3);
+    expect(gradeNewCard(true, 4900, 1, cfg)).toBe(3);
+    expect(gradeNewCard(true, 9000, 1, cfg)).toBe(2);
+    expect(gradeNewCard(true, 16000, 1, cfg)).toBe(1);
+    expect(gradeNewCard(true, 20000, 3, cfg)).toBe(2); // chords get longer
+    expect(gradeNewCard(true, 800, 1, { ...cfg, autoKnownMs: 0 })).toBe(3);
+  });
+  it('grade a new passage on the notes alone', async () => {
+    const { gradePassage } = await import('../src/srs/grading');
+    expect(gradePassage(20, 0, [400, 9000], { easyMs: 1000, goodMs: 5000 }, true)).toBe(3);
+    expect(gradePassage(20, 1, [400], { easyMs: 1000, goodMs: 5000 }, true)).toBe(2);
+  });
+});

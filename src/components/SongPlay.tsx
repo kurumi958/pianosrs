@@ -240,7 +240,7 @@ export function PassageTrial({ song, passage, status, data, onDone }: TrialProps
     onFinish: (r) => {
       if (graded.current) return; // replays after grading are just practice
       graded.current = true;
-      const grade = limitEasy(gradePassage(r.events, r.missed.size, r.gaps, s), status, s.easyWhileLearning);
+      const grade = limitEasy(gradePassage(r.events, r.missed.size, r.gaps, s, status === 'new'), status, s.easyWhileLearning);
       const slips = r.missed.size;
       const detail = slips ? `${slips} slip${slips === 1 ? '' : 's'} in ${r.events} notes` : `clean, ${(r.ms / 1000).toFixed(1)}s`;
       onDone(grade, detail, r.ms, barOutcomes(play.events, r.missed));

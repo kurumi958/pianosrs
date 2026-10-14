@@ -19,8 +19,9 @@ import {
   type Steps,
 } from 'ts-fsrs';
 
-export type Grade = 1 | 2 | 3 | 4; // Again, Hard, Good, Easy
-export const GRADE_LABELS: Record<Grade, string> = { 1: 'Again', 2: 'Hard', 3: 'Good', 4: 'Easy' };
+/** Again, Okay, Good, Easy (Okay is Anki's "Hard": right, but with effort). */
+export type Grade = 1 | 2 | 3 | 4;
+export const GRADE_LABELS: Record<Grade, string> = { 1: 'Again', 2: 'Okay', 3: 'Good', 4: 'Easy' };
 
 export type CardStatus = 'new' | 'learning' | 'review' | 'relearning';
 

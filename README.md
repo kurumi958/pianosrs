@@ -64,7 +64,9 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   keyboards and, with *Settings → Sound → Play my piano through this computer*, for your MIDI piano too: practice silently
   with headphones in the computer. Velocity picks the layer, released keys are damped (the top octaves ring on, as on a
   real piano) and the sustain pedal holds notes. The samples (23 MB in `public/piano/`) load in the background the first
-  time sound is on; a simple tone plays until they're ready.
+  time sound is on; a simple tone plays until they're ready. The metronome is a clockwork tick (alternating slightly
+  between the pendulum's two swings, the downbeat struck harder), with an optional small bell on beat 1 (*Settings → Sound
+  → Metronome*); both are synthesised, see `scripts/metronome/`.
 - **Things to work on**: notes you often misread in sight-reading (3+ misses in your last 10 attempts, with the keys you
   tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).
   *Practice* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and

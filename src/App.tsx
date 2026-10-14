@@ -2,6 +2,7 @@ import { RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { hub, installComputerKeyboard } from './midi/input';
 import { piano } from './audio/piano';
+import { loadMetronome, setMetronomeBell } from './midi/metronome';
 import { type AppData, loadData, saveData, setDayStartHour } from './storage';
 import { fillFsrsMemory, needsFsrsMemory } from './srs/memory';
 import { Home } from './components/Home';
@@ -122,6 +123,9 @@ export function App() {
     if (!data.settings.midiSound) piano.allOff();
   }, [data.settings.midiInput, data.settings.onscreenSound, data.settings.midiSound]);
   useEffect(() => piano.setVolume(data.settings.soundVolume), [data.settings.soundVolume]);
+  useEffect(() => setMetronomeBell(data.settings.metronomeBell), [data.settings.metronomeBell]);
+  // Have the metronome's tick ready before the first count-in.
+  useEffect(() => void loadMetronome(), []);
 
   // Songs: the built-in ones are always there; imported ones load from the browser's database.
   const [, setLibraryVersion] = useState(0);

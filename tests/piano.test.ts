@@ -17,3 +17,9 @@ describe('sampled piano', () => {
     expect([1, 16, 17, 64, 100, 127].map(layerFor)).toEqual([0, 0, 1, 3, 6, 7]);
   });
 });
+
+describe('metronome sounds', () => {
+  it('ships the two ticks and the bell', () => {
+    for (const f of ['tick-1', 'tick-2', 'bell']) expect(existsSync(`public/metronome/${f}.wav`), f).toBe(true);
+  });
+});

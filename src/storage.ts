@@ -63,6 +63,8 @@ export interface Settings {
   showKeyLabels: boolean;
   /** Play the MIDI piano's notes through the computer (headphones, or a piano turned down). */
   midiSound: boolean;
+  /** Ring a small bell on the first beat of each bar of the metronome. */
+  metronomeBell: boolean;
   /** Volume of the app's piano sound, 0–1. */
   soundVolume: number;
   /** Learning sessions: move to the next card a moment after a right answer. */
@@ -95,6 +97,7 @@ export const DEFAULT_SETTINGS: Settings = {
   learnAutoAdvance: false,
   midiSound: false,
   soundVolume: 0.8,
+  metronomeBell: false,
   theme: 'system',
   rhythmBpm: 72,
   sightMode: 'wait',

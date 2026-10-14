@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { piano } from '../audio/piano';
+import { barClicks, loadMetronome, scheduleClicks, setMetronomeBell } from '../midi/metronome';
 import { useMidiStatus } from '../hooks';
 import { SchedulingSettings } from './SchedulingSettings';
 import { hub } from '../midi/input';
@@ -294,6 +295,29 @@ function SoundSettings({ s, set }: { s: S; set: <K extends keyof S>(k: K, v: S[K
                 ? 'Grand piano ready'
                 : ''}
         </span>
+      </div>
+      <h4>Metronome</h4>
+      <div className="row">
+        <label className="check">
+          <input
+            type="checkbox"
+            checked={s.metronomeBell}
+            onChange={(e) => {
+              set('metronomeBell', e.target.checked);
+              setMetronomeBell(e.target.checked);
+            }}
+          />
+          Ring a bell on the first beat of each bar
+        </label>
+        <button
+          className="small"
+          onClick={async () => {
+            await loadMetronome();
+            scheduleClicks(barClicks(performance.now() + 150, 625, 4, 2));
+          }}
+        >
+          Hear the metronome
+        </button>
       </div>
       <p className="muted small">
         Piano: Salamander Grand Piano V3 by Alexander Holm (a Yamaha C5), licensed{' '}

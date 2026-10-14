@@ -2,12 +2,16 @@
 
 Learn to read sheet music with spaced repetition (like Anki), using a real MIDI piano as the answer button.
 
-- **Review**: flash cards show a note, interval or chord on the staff. Play it on your keyboard. The app grades you
+- **Review**: flash cards show a note, interval or chord on a treble, bass or grand staff. Play it on your keyboard. The app grades you
   automatically: a wrong key counts as *Again*, and a right answer is *Easy*, *Good* or *Hard* depending on how fast you
   played it. Scheduling is Anki's SM-2 algorithm with learning and relearning steps, a daily new-card limit, and undo.
 - **Sight-read**: generated 4/4 phrases built from the notes you've learned, with weak notes weighted to come up more.
-  Play straight through (the cursor waits for the right note); notes you stumble on become due in your flash cards straight away.
-- **Decks**: treble and bass clef notes on the staff, ledger lines, sharps and flats, intervals and triads. Enable them as you go.
+  Play straight through (the cursor waits for the right note or chord); notes you stumble on become due in your flash cards
+  straight away. Phrases can be treble only, bass only, or **two-handed on the grand staff**, with bar patterns for a right-hand
+  melody over held left-hand notes (and the reverse), melodies passing between the hands, and hands together.
+- **Decks**: treble and bass clef notes on the staff, ledger lines, sharps and flats, intervals and triads, plus grand-staff
+  decks: *which staff?* (single notes on either staff, middle C on both), *hands together* (one note per hand in C and G
+  position) and *bass note + chord*. Enable them as you go.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - No MIDI? The clickable on-screen piano and the computer keyboard (`A`–`;` white keys, `W E T Y U O P` black keys,
   `Z`/`X` change octave) both work.
@@ -48,12 +52,12 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/midi/input.ts` | Web MIDI, on-screen and computer-keyboard input hub |
 | `src/midi/matcher.ts` | Judges notes/chords played against the target |
 | `src/music/notation.ts` | Draws the staff with VexFlow |
-| `src/music/phrase.ts` | Sight-reading phrase generation and accidental handling |
+| `src/music/phrase.ts` | Sight-reading phrases (single staff or two-handed), events to play, accidentals |
 | `src/components/*` | React screens |
 
 ## Ideas for later
 
-- Grand staff cards and two-handed phrases, key signatures, rhythm reading
+- Key signatures, rhythm reading, stepwise melodies
 - FSRS scheduling as an option
 - Cloud sync between devices
 - Native Android build with a MIDI bridge plugin (see above)

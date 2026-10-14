@@ -11,12 +11,17 @@ import {
   toMidi,
 } from '../music/notes';
 
+/** Which staff a card is drawn on. Grand-staff cards use both hands. */
+export type StaffKind = Clef | 'grand';
+
 export interface Card {
   id: string;
   deck: string;
-  clef: Clef;
-  /** Sorted low → high. */
+  staff: StaffKind;
+  /** Every note to play, sorted low → high. */
   notes: Pitch[];
+  /** Notes written on each staff (right hand = treble, left hand = bass). One side is empty for single-clef cards. */
+  hands: Record<Clef, Pitch[]>;
 }
 
 export interface DeckDef {
@@ -28,7 +33,22 @@ export interface DeckDef {
 
 function makeCard(deck: string, clef: Clef, notes: Pitch[]): Card {
   const sorted = sortPitches(notes);
-  return { id: `${clef}:${sorted.map(pitchName).join('+')}`, deck, clef, notes: sorted };
+  const hands = { treble: [] as Pitch[], bass: [] as Pitch[] };
+  hands[clef] = sorted;
+  return { id: `${clef}:${sorted.map(pitchName).join('+')}`, deck, staff: clef, notes: sorted, hands };
+}
+
+/** A grand-staff card. Its id lists the right-hand notes, then the left-hand notes: "grand:E4+G4|C3". */
+function makeGrandCard(deck: string, treble: Pitch[], bass: Pitch[]): Card {
+  const t = sortPitches(treble);
+  const b = sortPitches(bass);
+  return {
+    id: `grand:${t.map(pitchName).join('+')}|${b.map(pitchName).join('+')}`,
+    deck,
+    staff: 'grand',
+    notes: sortPitches([...t, ...b]),
+    hands: { treble: t, bass: b },
+  };
 }
 
 /** Deterministic PRNG so the introduction order is stable between sessions. */
@@ -88,6 +108,48 @@ function stacks(deck: string, clef: Clef, from: string, to: string, shapes: numb
   return out;
 }
 
+/** Drop later duplicates (overlapping hand positions can produce the same card twice). */
+function uniqueById(cards: Card[]): Card[] {
+  const seen = new Set<string>();
+  return cards.filter((c) => !seen.has(c.id) && seen.add(c.id));
+}
+
+/** Single notes across the whole grand staff, so you learn to tell which staff you're reading. Middle C appears on both. */
+function grandSingles(deck: string): Card[] {
+  return [
+    ...naturalRange('C4', 'G5').map((p) => makeGrandCard(deck, [p], [])),
+    ...naturalRange('F2', 'C4').map((p) => makeGrandCard(deck, [], [p])),
+  ];
+}
+
+/** One note in each hand within a five-finger position, e.g. C position = LH C3–G3, RH C4–G4. */
+function handsTogether(deck: string, lhFrom: string, rhFrom: string, seed: number): Card[] {
+  const lh = diatonicIndex(parsePitch(lhFrom));
+  const rh = diatonicIndex(parsePitch(rhFrom));
+  const out: Card[] = [];
+  for (let i = 0; i < 5; i++)
+    for (let j = 0; j < 5; j++) out.push(makeGrandCard(deck, [fromDiatonicIndex(rh + j)], [fromDiatonicIndex(lh + i)]));
+  // Start with the thumbs and fifth fingers lining up (the easiest shapes), then the rest.
+  const anchors = [out[0], out[24], out[4], out[20]];
+  return [...anchors, ...shuffle(out.filter((c) => !anchors.includes(c)), seed)];
+}
+
+/** Left-hand bass note (or root + fifth) under a right-hand root-position triad on the same root. */
+function bassAndChord(deck: string): Card[] {
+  const out: Card[] = [];
+  for (const root of naturalRange('C4', 'B4')) {
+    const r = diatonicIndex(root);
+    const triad = [0, 2, 4].map((s) => fromDiatonicIndex(r + s));
+    out.push(makeGrandCard(deck, triad, [fromDiatonicIndex(r - 7)]));
+  }
+  for (const root of naturalRange('C3', 'F3')) {
+    const r = diatonicIndex(root);
+    const triad = [7, 9, 11].map((s) => fromDiatonicIndex(r + s));
+    out.push(makeGrandCard(deck, triad, [root, fromDiatonicIndex(r + 4)]));
+  }
+  return out;
+}
+
 const INTERVALS = [[2], [3], [4], [7]]; // 3rd, 4th, 5th, octave
 const TRIADS = [[2, 4]];
 
@@ -103,6 +165,18 @@ export const DECKS: DeckDef[] = [
     name: 'Bass clef: on the staff',
     description: 'F below the staff up to middle C.',
     cards: ordered(singles('bass-staff', 'bass', naturalRange('F2', 'C4')), ['bass:C4', 'bass:F3', 'bass:G2'], 2),
+  },
+  {
+    id: 'grand-staff',
+    name: 'Grand staff: which staff?',
+    description: 'Single notes on either staff of the grand staff — learn to switch clefs at a glance.',
+    cards: ordered(grandSingles('grand-staff'), ['grand:C4|', 'grand:|C4', 'grand:G4|', 'grand:|F3'], 11),
+  },
+  {
+    id: 'grand-hands',
+    name: 'Grand staff: hands together',
+    description: 'One note in each hand, in C position then G position.',
+    cards: uniqueById([...handsTogether('grand-hands', 'C3', 'C4', 12), ...handsTogether('grand-hands', 'G2', 'G4', 13)]),
   },
   {
     id: 'treble-ledger',
@@ -160,11 +234,24 @@ export const DECKS: DeckDef[] = [
     description: 'Root-position white-key triads.',
     cards: ordered(stacks('bass-triads', 'bass', 'F2', 'G3', TRIADS, 'D4'), [], 10),
   },
+  {
+    id: 'grand-chords',
+    name: 'Grand staff: bass note + chord',
+    description: 'A left-hand root (or root and fifth) under a right-hand triad.',
+    cards: bassAndChord('grand-chords'),
+  },
 ];
 
 export const ALL_CARDS: Card[] = DECKS.flatMap((d) => d.cards);
 export const CARD_BY_ID: Map<string, Card> = new Map(ALL_CARDS.map((c) => [c.id, c]));
 
 export function cardLabel(card: Card): string {
-  return card.notes.map(pitchName).join(' + ');
+  if (card.staff !== 'grand') return card.notes.map(pitchName).join(' + ');
+  const hand = (ps: Pitch[]) => ps.map(pitchName).join('+');
+  const { treble, bass } = card.hands;
+  if (!bass.length) return `${hand(treble)} (RH)`;
+  if (!treble.length) return `${hand(bass)} (LH)`;
+  return `LH ${hand(bass)} · RH ${hand(treble)}`;
 }
+
+export const STAFF_LABEL: Record<StaffKind, string> = { treble: 'treble clef', bass: 'bass clef', grand: 'grand staff' };

@@ -1,7 +1,7 @@
-import { Accidental, Formatter, Renderer, Stave, StaveNote, Voice } from 'vexflow/bravura';
+import { Accidental, Formatter, Renderer, Stave, StaveConnector, StaveNote, Voice } from 'vexflow/bravura';
 import type { Card } from '../srs/deck';
-import { type Clef, vexKey } from './notes';
-import { accidentalsToDraw } from './phrase';
+import { type Clef, type Pitch, sortPitches, vexKey } from './notes';
+import { accidentalsToDraw, eventKey, type Beats, type DrawnAccidental, type Phrase, type PhraseEvent } from './phrase';
 
 export const COLORS = {
   ink: '#1b1b1b',
@@ -27,8 +27,18 @@ function prepare(el: HTMLElement, width: number, height: number) {
   return ctx;
 }
 
-function makeNote(card: Card, clef: Clef, duration: string, accs: (string | null)[], color: string): StaveNote {
-  const note = new StaveNote({ clef, keys: card.notes.map(vexKey), duration });
+type Ctx = ReturnType<typeof prepare>;
+
+const DURATION: Record<Beats, string> = { 1: 'q', 2: 'h', 4: 'w' };
+// Where rests sit: the whole rest hangs from the 4th line, others are centred.
+const REST_KEY: Record<Clef, Record<Beats, string>> = {
+  treble: { 1: 'b/4', 2: 'b/4', 4: 'd/5' },
+  bass: { 1: 'd/3', 2: 'd/3', 4: 'f/3' },
+};
+
+function makeNote(pitches: Pitch[], clef: Clef, beats: Beats, accs: DrawnAccidental[], color: string): StaveNote {
+  if (!pitches.length) return new StaveNote({ clef, keys: [REST_KEY[clef][beats]], duration: `${DURATION[beats]}r` });
+  const note = new StaveNote({ clef, keys: sortPitches(pitches).map(vexKey), duration: DURATION[beats], auto_stem: true });
   accs.forEach((a, i) => {
     if (a) note.addModifier(new Accidental(a), i);
   });
@@ -36,50 +46,94 @@ function makeNote(card: Card, clef: Clef, duration: string, accs: (string | null
   return note;
 }
 
-/** One flash card: a single whole note or chord on one staff. */
+function connect(ctx: Ctx, top: Stave, bottom: Stave, type: 'brace' | 'singleLeft' | 'singleRight' | 'boldDoubleRight') {
+  new StaveConnector(top, bottom).setType(type).setContext(ctx).draw();
+}
+
+/** Draw voices on their staves, formatted together so simultaneous notes line up. */
+function drawVoices(ctx: Ctx, parts: { stave: Stave; notes: StaveNote[] }[]) {
+  const voices = parts.map((p) => new Voice({ num_beats: 4, beat_value: 4 }).setStrict(false).addTickables(p.notes));
+  const f = new Formatter();
+  voices.forEach((v) => f.joinVoices([v]));
+  f.formatToStave(voices, parts[0].stave);
+  voices.forEach((v, i) => v.draw(ctx, parts[i].stave));
+}
+
+const plainAccs = (ps: Pitch[]): DrawnAccidental[] => sortPitches(ps).map((p) => (p.acc ? p.acc : null));
+
+/** One flash card: a whole note or chord on one staff, or on both staves of a grand staff. */
 export function renderCard(el: HTMLElement, card: Card, color = COLORS.ink): void {
   const width = 220;
-  const height = 190;
-  const ctx = prepare(el, width, height);
-  const stave = new Stave(10, 45, width - 20);
-  stave.addClef(card.clef).setContext(ctx).draw();
-  const accs = card.notes.map((p) => (p.acc ? p.acc : null));
-  const note = makeNote(card, card.clef, 'w', accs, color);
-  const voice = new Voice({ num_beats: 4, beat_value: 4 }).addTickables([note]);
-  new Formatter().joinVoices([voice]).format([voice], width - 110);
-  voice.draw(ctx, stave);
+  if (card.staff !== 'grand') {
+    const ctx = prepare(el, width, 190);
+    const stave = new Stave(10, 45, width - 20).addClef(card.staff).setContext(ctx).draw();
+    drawVoices(ctx, [{ stave, notes: [makeNote(card.notes, card.staff, 4, plainAccs(card.notes), color)] }]);
+    return;
+  }
+  const ctx = prepare(el, width, 290);
+  const treble = new Stave(25, 30, width - 35).addClef('treble').setContext(ctx).draw();
+  const bass = new Stave(25, 150, width - 35).addClef('bass').setContext(ctx).draw();
+  connect(ctx, treble, bass, 'brace');
+  connect(ctx, treble, bass, 'singleLeft');
+  connect(ctx, treble, bass, 'singleRight');
+  drawVoices(ctx, [
+    { stave: treble, notes: [makeNote(card.hands.treble, 'treble', 4, plainAccs(card.hands.treble), color)] },
+    { stave: bass, notes: [makeNote(card.hands.bass, 'bass', 4, plainAccs(card.hands.bass), color)] },
+  ]);
 }
 
 export type PhraseMark = 'pending' | 'current' | 'ok' | 'miss';
 
-/** A sight-reading phrase: quarter notes in 4/4, wrapped over as many lines as fit. */
-export function renderPhrase(el: HTMLElement, cards: Card[], clef: Clef, marks: PhraseMark[], logicalWidth: number): void {
-  const measures: Card[][] = [];
-  for (let i = 0; i < cards.length; i += 4) measures.push(cards.slice(i, i + 4));
-  const perLine = Math.max(1, Math.min(measures.length, Math.floor((logicalWidth - 20) / 200)));
-  const lines = Math.ceil(measures.length / perLine);
-  const lineHeight = 140;
+/** A sight-reading phrase in 4/4, wrapped over as many lines as fit. `marks` has one entry per event. */
+export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEvent[], marks: PhraseMark[], logicalWidth: number): void {
+  const grand = phrase.staff === 'grand';
+  const clefs: Clef[] = grand ? ['treble', 'bass'] : [phrase.staff as Clef];
+  const eventIndex = new Map(events.map((e, i) => [eventKey(e.measure, e.beat), i]));
+  const left = grand ? 25 : 10;
+  const n = phrase.measures.length;
+  const maxPerLine = Math.max(1, Math.floor((logicalWidth - left - 10) / 200));
+  const lines = Math.ceil(n / maxPerLine);
+  // Spread bars evenly over the lines rather than leaving one stranded on the last line.
+  const perLine = Math.ceil(n / lines);
+  const staffGap = 110;
+  const lineHeight = grand ? 240 : 140;
   const ctx = prepare(el, logicalWidth, lines * lineHeight + 20);
-  const measureWidth = (logicalWidth - 20) / perLine;
+  const measureWidth = (logicalWidth - left - 10) / perLine;
 
-  measures.forEach((m, mi) => {
+  phrase.measures.forEach((m, mi) => {
     const line = Math.floor(mi / perLine);
     const col = mi % perLine;
-    const stave = new Stave(10 + col * measureWidth, 20 + line * lineHeight, measureWidth);
-    if (col === 0) stave.addClef(clef);
-    if (mi === 0) stave.addTimeSignature('4/4');
-    if (mi === measures.length - 1) stave.setEndBarType(3); // final double bar
-    stave.setContext(ctx).draw();
-
-    const accs = accidentalsToDraw(m.map((c) => c.notes));
-    const notes = m.map((card, j) => {
-      const mark = marks[mi * 4 + j] ?? 'pending';
-      const color = mark === 'current' ? COLORS.current : mark === 'ok' ? COLORS.ok : mark === 'miss' ? COLORS.miss : COLORS.ink;
-      return makeNote(card, clef, 'q', accs[j], color);
+    const x = left + col * measureWidth;
+    const staves = clefs.map((clef, si) => {
+      const st = new Stave(x, 20 + line * lineHeight + si * staffGap, measureWidth);
+      if (col === 0) st.addClef(clef);
+      if (mi === 0) st.addTimeSignature('4/4');
+      if (mi === n - 1) st.setEndBarType(3); // final double bar
+      return st.setContext(ctx).draw();
     });
-    while (notes.length < 4) notes.push(new StaveNote({ clef, keys: [clef === 'treble' ? 'b/4' : 'd/3'], duration: 'qr' }));
-    const voice = new Voice({ num_beats: 4, beat_value: 4 }).addTickables(notes);
-    new Formatter().joinVoices([voice]).formatToStave([voice], stave);
-    voice.draw(ctx, stave);
+    if (grand) {
+      if (col === 0) {
+        connect(ctx, staves[0], staves[1], 'brace');
+        connect(ctx, staves[0], staves[1], 'singleLeft');
+      }
+      connect(ctx, staves[0], staves[1], mi === n - 1 ? 'boldDoubleRight' : 'singleRight');
+    }
+
+    drawVoices(
+      ctx,
+      clefs.map((clef, si) => {
+        const voice = m[clef];
+        const accs = accidentalsToDraw(voice.map((v) => sortPitches(v.pitches)));
+        let beat = 0;
+        const notes = voice.map((v, j) => {
+          const idx = eventIndex.get(eventKey(mi, beat));
+          beat += v.beats;
+          const mark = idx === undefined ? 'pending' : (marks[idx] ?? 'pending');
+          const color = mark === 'current' ? COLORS.current : mark === 'ok' ? COLORS.ok : mark === 'miss' ? COLORS.miss : COLORS.ink;
+          return makeNote(v.pitches, clef, v.beats, accs[j], color);
+        });
+        return { stave: staves[si], notes };
+      }),
+    );
   });
 }

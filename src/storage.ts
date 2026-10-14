@@ -1,6 +1,8 @@
+import type { GrandStyle } from './music/phrase';
 import type { CardState, Grade } from './srs/scheduler';
 
-export type SightClef = 'treble' | 'bass' | 'alternate';
+/** "alternate" rotates through treble, bass and grand staff phrases. */
+export type SightClef = 'treble' | 'bass' | 'grand' | 'alternate';
 
 export interface Settings {
   enabledDecks: string[];
@@ -11,6 +13,8 @@ export interface Settings {
   ignoreOctave: boolean;
   phraseLength: number;
   sightClef: SightClef;
+  /** Bar patterns used for two-handed grand-staff phrases. */
+  grandStyle: GrandStyle;
   /** "all" listens to every connected MIDI input. */
   midiInput: string;
   /** Play a tone for on-screen / computer-keyboard input (a real piano makes its own sound). */
@@ -25,6 +29,7 @@ export const DEFAULT_SETTINGS: Settings = {
   ignoreOctave: false,
   phraseLength: 8,
   sightClef: 'treble',
+  grandStyle: 'mixed',
   midiInput: 'all',
   onscreenSound: true,
 };

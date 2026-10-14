@@ -1,10 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttemptMatcher } from '../midi/matcher';
-import type { Clef } from '../music/notes';
 import { toMidi } from '../music/notes';
 import type { PhraseMark } from '../music/notation';
-import { generatePhrase } from '../music/phrase';
-import { type Card, cardLabel, DECKS } from '../srs/deck';
+import { generatePhrase, grandStaffPhrase, type GrandStyle, type Phrase, phraseEvents, singleStaffPhrase } from '../music/phrase';
+import { type Card, cardLabel, DECKS, type StaffKind } from '../srs/deck';
 import type { AppData, SightClef } from '../storage';
 import { useHeldNotes, useNoteEvents } from '../hooks';
 import { PhraseStaff } from './Staff';
@@ -15,24 +14,47 @@ interface Props {
   update: (fn: (d: AppData) => void) => void;
 }
 
-/** Cards to draw a phrase from: ones you've already started learning, or the first few of each enabled deck. */
-function poolFor(data: AppData, clef: Clef): Card[] {
-  const decks = DECKS.filter((d) => data.settings.enabledDecks.includes(d.id) && d.cards[0]?.clef === clef);
-  const all = decks.flatMap((d) => d.cards);
-  const started = all.filter((c) => data.cards[c.id] && data.cards[c.id].status !== 'new');
+/** Cards you've already started learning, or (early on) the first few cards so there's always something to read. */
+function startedOrFirst(cards: Card[], data: AppData, fallbackDeck: string): Card[] {
+  const started = cards.filter((c) => data.cards[c.id] && data.cards[c.id].status !== 'new');
   if (started.length >= 3) return started;
-  return [...started, ...all.filter((c) => !started.includes(c))].slice(0, 5);
+  const source = cards.length ? cards : (DECKS.find((d) => d.id === fallbackDeck)?.cards ?? []);
+  return [...started, ...source.filter((c) => !started.includes(c))].slice(0, 5);
+}
+
+function buildPhrase(data: AppData, staff: StaffKind): Phrase {
+  const enabled = DECKS.filter((d) => data.settings.enabledDecks.includes(d.id)).flatMap((d) => d.cards);
+  const bars = Math.max(1, Math.ceil(data.settings.phraseLength / 4));
+  if (staff !== 'grand') {
+    const pool = startedOrFirst(
+      enabled.filter((c) => c.staff === staff),
+      data,
+      `${staff}-staff`,
+    );
+    return singleStaffPhrase(generatePhrase(pool, data.cards, bars * 4), staff);
+  }
+  const rhOnly = enabled.filter((c) => c.hands.treble.length && !c.hands.bass.length);
+  const lhOnly = enabled.filter((c) => c.hands.bass.length && !c.hands.treble.length);
+  const both = enabled.filter((c) => c.hands.treble.length && c.hands.bass.length && data.cards[c.id] && data.cards[c.id].status !== 'new');
+  return grandStaffPhrase(
+    { rh: startedOrFirst(rhOnly, data, 'treble-staff'), lh: startedOrFirst(lhOnly, data, 'bass-staff'), both },
+    data.cards,
+    bars,
+    data.settings.grandStyle,
+  );
 }
 
 interface Result {
   ms: number;
-  notes: number;
+  events: number;
   misses: number;
-  /** Notes played right the first time. */
+  /** Events played right the first time. */
   clean: number;
   missed: Card[];
   flagged: number;
 }
+
+const ROTATION: StaffKind[] = ['treble', 'bass', 'grand'];
 
 export function SightRead({ data, update }: Props) {
   const held = useHeldNotes();
@@ -46,33 +68,33 @@ export function SightRead({ data, update }: Props) {
   const missCount = useRef(0);
 
   const sc: SightClef = data.settings.sightClef;
-  const clef: Clef = sc === 'alternate' ? (round % 2 === 0 ? 'treble' : 'bass') : sc;
+  const staff: StaffKind = sc === 'alternate' ? ROTATION[round % ROTATION.length] : sc;
 
   const deckKey = data.settings.enabledDecks.join(',');
   const phrase = useMemo(
-    () => generatePhrase(poolFor(data, clef), data.cards, data.settings.phraseLength),
+    () => buildPhrase(data, staff),
     // Only regenerate on a new round or settings change, not on every card-state update.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    [round, clef, data.settings.phraseLength, deckKey],
+    [round, staff, data.settings.phraseLength, data.settings.grandStyle, deckKey],
+  );
+  const events = useMemo(() => phraseEvents(phrase), [phrase]);
+  const targetOf = useCallback(
+    (i: number) => new AttemptMatcher(events[i].pitches.map(toMidi), data.settings.ignoreOctave),
+    [events, data.settings.ignoreOctave],
   );
 
-  const reset = useCallback(() => {
+  useEffect(() => {
     setCursor(0);
     setMissed(new Set());
     setWrong([]);
     setResult(null);
     startedAt.current = null;
     missCount.current = 0;
-  }, []);
-
-  useEffect(() => {
-    reset();
-    matcher.current = phrase[0] ? new AttemptMatcher(phrase[0].notes.map(toMidi), data.settings.ignoreOctave) : null;
-  }, [phrase, reset, data.settings.ignoreOctave]);
+    matcher.current = events.length ? targetOf(0) : null;
+  }, [events, targetOf]);
 
   const finish = (misses: Set<number>) => {
     const ms = performance.now() - (startedAt.current ?? performance.now());
-    const missedCards = [...new Set([...misses].map((i) => phrase[i]))];
+    const missedCards = [...new Set([...misses].flatMap((i) => events[i].cards))];
     // Notes you stumbled on become due in the flashcards straight away.
     let flagged = 0;
     const now = Date.now();
@@ -85,30 +107,24 @@ export function SightRead({ data, update }: Props) {
         }
       }
     });
-    setResult({ ms, notes: phrase.length, misses: missCount.current, clean: phrase.length - misses.size, missed: missedCards, flagged });
+    setResult({ ms, events: events.length, misses: missCount.current, clean: events.length - misses.size, missed: missedCards, flagged });
   };
 
   useNoteEvents((e) => {
     if (e.type !== 'on' || result || !matcher.current) return;
     startedAt.current ??= performance.now();
     const r = matcher.current.noteOn(e.note);
-    const card = phrase[cursor];
     if (r === 'wrong') {
       missCount.current++;
       setWrong([e.note]);
-      const m = new Set(missed).add(cursor);
-      setMissed(m);
-      matcher.current = new AttemptMatcher(card.notes.map(toMidi), data.settings.ignoreOctave);
+      setMissed(new Set(missed).add(cursor));
+      matcher.current = targetOf(cursor);
     } else if (r === 'correct') {
       setWrong([]);
       const next = cursor + 1;
-      if (next >= phrase.length) {
-        setCursor(next);
-        finish(missed);
-      } else {
-        setCursor(next);
-        matcher.current = new AttemptMatcher(phrase[next].notes.map(toMidi), data.settings.ignoreOctave);
-      }
+      setCursor(next);
+      if (next >= events.length) finish(missed);
+      else matcher.current = targetOf(next);
     }
   });
 
@@ -123,60 +139,69 @@ export function SightRead({ data, update }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
-  const marks: PhraseMark[] = phrase.map((_, i) =>
-    i === cursor ? 'current' : i < cursor ? (missed.has(i) ? 'miss' : 'ok') : 'pending',
+  const marks: PhraseMark[] = useMemo(
+    () => events.map((_, i) => (i === cursor ? 'current' : i < cursor ? (missed.has(i) ? 'miss' : 'ok') : 'pending')),
+    [events, cursor, missed],
   );
 
-  const setClef = (v: SightClef) =>
+  const set = <K extends 'sightClef' | 'phraseLength' | 'grandStyle'>(k: K, v: AppData['settings'][K]) =>
     update((d) => {
-      d.settings.sightClef = v;
-    });
-  const setLength = (n: number) =>
-    update((d) => {
-      d.settings.phraseLength = n;
+      d.settings[k] = v;
     });
 
-  if (!phrase.length) {
-    return <div className="panel empty">Enable a {clef} clef deck in the <b>Decks</b> tab to practise sight-reading.</div>;
+  if (!events.length) {
+    return <div className="panel empty">Enable some decks in the <b>Decks</b> tab to practise sight-reading.</div>;
   }
 
-  const target = phrase[Math.min(cursor, phrase.length - 1)].notes.map(toMidi);
+  const target = events[Math.min(cursor, events.length - 1)].pitches.map(toMidi);
+  const bars = phrase.measures.length;
 
   return (
     <div className="sight">
       <div className="row controls">
         <label>
-          Clef{' '}
-          <select value={sc} onChange={(e) => setClef(e.target.value as SightClef)}>
+          Staff{' '}
+          <select value={sc} onChange={(e) => set('sightClef', e.target.value as SightClef)}>
             <option value="treble">Treble</option>
             <option value="bass">Bass</option>
-            <option value="alternate">Alternate</option>
+            <option value="grand">Grand staff (both hands)</option>
+            <option value="alternate">Rotate all three</option>
           </select>
         </label>
         <label>
           Length{' '}
-          <select value={data.settings.phraseLength} onChange={(e) => setLength(Number(e.target.value))}>
-            {[4, 8, 12, 16, 24, 32].map((n) => (
+          <select value={bars} onChange={(e) => set('phraseLength', Number(e.target.value) * 4)}>
+            {[1, 2, 3, 4, 6, 8].map((n) => (
               <option key={n} value={n}>
-                {n} notes
+                {n} bar{n > 1 ? 's' : ''}
               </option>
             ))}
           </select>
         </label>
+        {phrase.staff === 'grand' && (
+          <label>
+            Hands{' '}
+            <select value={data.settings.grandStyle} onChange={(e) => set('grandStyle', e.target.value as GrandStyle)}>
+              <option value="mixed">Mixed</option>
+              <option value="melody">RH melody, LH held</option>
+              <option value="bass-melody">LH melody, RH held</option>
+              <option value="alternate">Alternating hands</option>
+              <option value="together">Hands together</option>
+            </select>
+          </label>
+        )}
         <span className="spacer" />
         <button onClick={() => setRound((r) => r + 1)}>New phrase</button>
       </div>
 
-      <PhraseStaff cards={phrase} clef={clef} marks={marks} />
+      <PhraseStaff phrase={phrase} events={events} marks={marks} />
 
       {result ? (
         <div className="panel result">
-          <h3>
-            {result.misses === 0 ? 'Clean run! ✨' : `${Math.round((100 * result.clean) / result.notes)}% right first time`}
-          </h3>
+          <h3>{result.misses === 0 ? 'Clean run! ✨' : `${Math.round((100 * result.clean) / result.events)}% right first time`}</h3>
           <p>
-            {result.notes} notes in {(result.ms / 1000).toFixed(1)}s ({Math.round((result.notes / result.ms) * 60_000)} per minute) ·{' '}
-            {result.misses} wrong key{result.misses === 1 ? '' : 's'}
+            {result.events} notes/chords in {(result.ms / 1000).toFixed(1)}s ({Math.round((result.events / result.ms) * 60_000)} per
+            minute) · {result.misses} wrong key{result.misses === 1 ? '' : 's'}
           </p>
           {result.missed.length > 0 && (
             <p className="muted">
@@ -191,12 +216,13 @@ export function SightRead({ data, update }: Props) {
       ) : (
         <div className="feedback">
           <span className="muted">
-            Note {cursor + 1} of {phrase.length} · play through without looking down
+            {cursor + 1} of {events.length}
+            {target.length > 1 ? ` · play ${target.length} notes together` : ''} · keep your eyes on the music
           </span>
         </div>
       )}
 
-      <Piano held={held} wrong={wrong} focus={target[0]} />
+      <Piano held={held} wrong={wrong} focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)} />
     </div>
   );
 }

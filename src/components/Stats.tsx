@@ -1,4 +1,4 @@
-import { CARD_BY_ID, cardLabel } from '../srs/deck';
+import { CARD_BY_ID, cardLabel, STAFF_LABEL } from '../srs/deck';
 import { GRADE_LABELS } from '../srs/scheduler';
 import { type AppData, dayKey } from '../storage';
 
@@ -83,7 +83,7 @@ export function Stats({ data }: { data: AppData }) {
             const c = CARD_BY_ID.get(s.id)!;
             return (
               <li key={s.id}>
-                <b>{cardLabel(c)}</b> <span className="muted">{c.clef} clef · {s.lapses} lapses · ease {s.ease.toFixed(2)}</span>
+                <b>{cardLabel(c)}</b> <span className="muted">{STAFF_LABEL[c.staff]} · {s.lapses} lapses · ease {s.ease.toFixed(2)}</span>
               </li>
             );
           })}

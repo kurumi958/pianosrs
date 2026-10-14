@@ -215,7 +215,7 @@ export function Review({ data, update }: Props) {
         </div>
       )}
 
-      <Piano held={held} answer={phase === 'wrong' ? target : []} wrong={wrongNotes} focus={target[0]} />
+      <Piano held={held} answer={phase === 'wrong' ? target : []} wrong={wrongNotes} focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)} />
     </div>
   );
 }

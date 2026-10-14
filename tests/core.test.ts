@@ -4,7 +4,14 @@ import { DEFAULT_SCHEDULER as cfg, newCardState, schedule } from '../src/srs/sch
 import { ALL_CARDS, CARD_BY_ID, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
-import { accidentalsToDraw, generatePhrase } from '../src/music/phrase';
+import {
+  accidentalsToDraw,
+  generatePhrase,
+  grandStaffPhrase,
+  type GrandStyle,
+  phraseEvents,
+  singleStaffPhrase,
+} from '../src/music/phrase';
 import { autoGrade } from '../src/srs/grading';
 import { mulberry32 } from '../src/srs/deck';
 
@@ -74,6 +81,33 @@ describe('decks', () => {
   });
 });
 
+describe('grand staff decks', () => {
+  const deck = (id: string) => DECKS.find((d) => d.id === id)!.cards;
+  it('splits notes between the hands', () => {
+    const c = CARD_BY_ID.get('grand:C4+E4+G4|C3')!;
+    expect(c.staff).toBe('grand');
+    expect(c.hands.treble.map(toMidi)).toEqual([60, 64, 67]);
+    expect(c.hands.bass.map(toMidi)).toEqual([48]);
+    expect(c.notes.map(toMidi)).toEqual([48, 60, 64, 67]);
+  });
+  it('has middle C on either staff', () => {
+    expect(CARD_BY_ID.get('grand:C4|')!.hands.treble).toHaveLength(1);
+    expect(CARD_BY_ID.get('grand:|C4')!.hands.bass).toHaveLength(1);
+  });
+  it('builds hands-together cards in C then G position', () => {
+    const hands = deck('grand-hands');
+    expect(hands).toHaveLength(48); // 2 shapes overlap between the positions
+    expect(hands[0].id).toBe('grand:C4|C3');
+    expect(hands.slice(0, 25).every((c) => c.hands.bass[0].octave === 3)).toBe(true);
+  });
+  it('keeps every card on its staff\'s side of middle C (give or take ledger lines)', () => {
+    for (const c of ALL_CARDS) {
+      for (const p of c.hands.treble) expect(toMidi(p)).toBeGreaterThanOrEqual(55);
+      for (const p of c.hands.bass) expect(toMidi(p)).toBeLessThanOrEqual(67);
+    }
+  });
+});
+
 describe('session queue', () => {
   const cards = DECKS[0].cards.slice(0, 3);
   const now = 1_000_000_000_000;
@@ -116,6 +150,49 @@ describe('phrases', () => {
   it('prints accidentals only when the bar needs them', () => {
     const P = parsePitch;
     expect(accidentalsToDraw([[P('F#4')], [P('F#4')], [P('F4')], [P('F5')]])).toEqual([['#'], [null], ['n'], [null]]);
+  });
+});
+
+describe('rhythmic phrases', () => {
+  const treble = DECKS.find((d) => d.id === 'treble-staff')!.cards;
+  const bass = DECKS.find((d) => d.id === 'bass-staff')!.cards;
+  const both = DECKS.find((d) => d.id === 'grand-hands')!.cards.slice(0, 4);
+  const beats = (v: { beats: number }[]) => v.reduce((a, n) => a + n.beats, 0);
+
+  it('pads single-staff phrases to full bars', () => {
+    const p = singleStaffPhrase(treble.slice(0, 6), 'treble');
+    expect(p.measures).toHaveLength(2);
+    expect(p.measures[1].treble.map((n) => n.pitches.length)).toEqual([1, 1, 0, 0]);
+    expect(phraseEvents(p)).toHaveLength(6);
+  });
+
+  it('fills both voices of every grand-staff bar with four beats', () => {
+    for (const style of ['mixed', 'melody', 'bass-melody', 'alternate', 'together'] as GrandStyle[]) {
+      const p = grandStaffPhrase({ rh: treble, lh: bass, both }, {}, 12, style, mulberry32(3));
+      expect(p.measures).toHaveLength(12);
+      for (const m of p.measures) {
+        expect(beats(m.treble)).toBe(4);
+        expect(beats(m.bass)).toBe(4);
+      }
+    }
+  });
+
+  it('merges notes that start together into one event', () => {
+    const p = grandStaffPhrase({ rh: treble, lh: bass, both: [] }, {}, 1, 'melody', mulberry32(1));
+    const ev = phraseEvents(p);
+    expect(ev).toHaveLength(4);
+    expect(ev[0].beat).toBe(0);
+    expect(ev[0].cards).toHaveLength(2); // RH note + LH held note
+    expect(ev[1].cards).toHaveLength(1);
+  });
+
+  it('uses both hands in alternating bars', () => {
+    const p = grandStaffPhrase({ rh: treble, lh: bass, both: [] }, {}, 20, 'alternate', mulberry32(9));
+    for (const m of p.measures) {
+      expect(m.treble.some((n) => n.pitches.length)).toBe(true);
+      expect(m.bass.some((n) => n.pitches.length)).toBe(true);
+      expect(phraseEvents({ staff: 'grand', measures: [m] })).toHaveLength(4);
+    }
   });
 });
 

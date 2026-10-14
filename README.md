@@ -127,6 +127,27 @@ start a test again. A quick run-through:
 7. **Songs**: open *Ode to Joy*, click bar 1 and play it hands together, then try *In time*. Turn on *Learn this song* and the
    passages appear in Review.
 
+## Desktop app
+
+PianoSRS also runs as a desktop app for Windows, macOS and Linux, built with [Electron](https://www.electronjs.org/).
+It's the same app in its own window: Electron ships Chromium, so Web MIDI works the same everywhere, including macOS
+(where Safari's engine has no MIDI). Downloads are on the repository's Releases page.
+
+```bash
+npm run desktop       # build, then open the desktop app
+npm run desktop:dev   # the desktop app on the Vite dev server, with hot reload
+npm run dist          # installers for this platform in release/ (dist:win, dist:mac, dist:linux for one)
+```
+
+- `electron/main.cjs` serves `dist/` from `app://pianosrs` (a stable, secure origin, so saved progress stays put),
+  allows MIDI, opens outside links in your browser, and keeps to one window.
+- Progress is stored in the app's own profile (`%APPDATA%/PianoSRS` on Windows, `~/Library/Application Support/PianoSRS`
+  on macOS), separate from any browser. Move it with *Export backup* / *Import backup*.
+- The *Desktop app* GitHub workflow builds all three platforms. A `v*` tag, a manual run, or a commit message containing
+  `[release]` publishes the builds as a pre-release named after `package.json`'s version.
+- Not code-signed yet, so Windows SmartScreen and macOS Gatekeeper warn on first launch (the release notes explain how
+  to open it anyway).
+
 ## Android
 
 The simplest route is the web app itself: **Chrome on Android supports Web MIDI**. Plug the piano in with a USB-OTG
@@ -182,4 +203,6 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Songs: playing repeats and voltas as performed; a bigger CC0 corpus (OpenScore, Mutopia); looping a passage while
   speeding it up
 - Cloud sync between devices
+- Desktop app: keep progress and imported songs in a data file (so backups include songs and PDFs), automatic
+  backups, the API key in the system keychain, code signing and automatic updates
 - Native Android build with a MIDI bridge plugin (see above)

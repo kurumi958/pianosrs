@@ -17,6 +17,8 @@ createRoot(document.getElementById('root')!).render(
   </StrictMode>,
 );
 
-if ('serviceWorker' in navigator && import.meta.env.PROD) {
+// The web app works offline through a service worker; the desktop app has its files on disk already.
+const desktop = 'pianosrsDesktop' in window;
+if ('serviceWorker' in navigator && import.meta.env.PROD && !desktop) {
   navigator.serviceWorker.register('./sw.js').catch(() => {});
 }

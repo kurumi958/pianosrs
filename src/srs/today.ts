@@ -1,6 +1,7 @@
 import { type AppData, dayKey } from '../storage';
 import { COURSE_DECKS } from './deck';
 import { countQueue } from './session';
+import { reviewCards, unitToLearn } from './learn';
 import { courseProgress, studyCards } from './study';
 
 const DAY = 86_400_000;
@@ -36,13 +37,16 @@ export interface CourseSpot {
   total: number;
   unitIndex: number;
   units: number;
+  /** The unit with cards still to learn (the open one, or an earlier one not finished), or null if all are learned. */
+  learnIndex: number | null;
 }
 
 /** Today's plan for the home page. */
 export function todayPlan(data: AppData, now = Date.now()) {
   const input = { enabledDecks: data.settings.enabledDecks, courses: data.courses, states: data.cards };
-  const cards = studyCards(input);
-  const counts = countQueue({ cards, states: data.cards, now, ...dailyLimits(data, now) });
+  // Review shows learned cards only; new ones are met in learning sessions.
+  const cards = reviewCards(input);
+  const counts = countQueue({ cards, states: data.cards, now, ...dailyLimits(data, now), newRemaining: 0 });
   const total = counts.newCount + counts.learning + counts.review;
   const nextDue = cards
     .map((c) => data.cards[c.id])
@@ -50,16 +54,19 @@ export function todayPlan(data: AppData, now = Date.now()) {
     .reduce((m, s) => Math.min(m, s!.due), Infinity);
   const courses: CourseSpot[] = COURSE_DECKS.filter((c) => data.settings.enabledDecks.includes(c.id)).map((c) => {
     const p = courseProgress(c, data.cards, data.courses[c.id]);
-    const u = c.units![p.open];
+    const learnIndex = unitToLearn(c, data.cards, data.courses[c.id]);
+    const at = learnIndex ?? p.open;
+    const u = c.units![at];
     return {
       id: c.id,
       name: c.name,
       unit: u.title,
       summary: u.summary,
-      learned: p.units[p.open].learned,
-      total: p.units[p.open].total,
-      unitIndex: p.open,
+      learned: p.units[at].learned,
+      total: p.units[at].total,
+      unitIndex: at,
       units: c.units!.length,
+      learnIndex,
     };
   });
   // Answers recorded by "Known" aren't real answers, so they don't count here.
@@ -76,6 +83,6 @@ export function todayPlan(data: AppData, now = Date.now()) {
     reviewedToday: todayLog.length,
     accuracy: week.length ? week.filter((l) => l.grade > 1).length / week.length : null,
     streak: studyStreak(answers, now),
-    hasDecks: cards.length > 0,
+    hasDecks: studyCards(input).length > 0,
   };
 }

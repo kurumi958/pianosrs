@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttemptMatcher } from '../midi/matcher';
 import { isMinor, midiName, toMidi } from '../music/notes';
 import { COLORS } from '../music/notation';
-import { type Card, cardLabel, COURSE_DECKS as COURSES } from '../srs/deck';
-import { courseProgress, studyCards } from '../srs/study';
+import { type Card, cardLabel } from '../srs/deck';
+import { reviewCards, reviewSections } from '../srs/learn';
 import { autoGrade, gradeNewCard, limitEasy } from '../srs/grading';
 import { type CardState, formatDelay, type Grade, GRADE_LABELS, markKnown, schedule } from '../srs/scheduler';
 import { countQueue, pickNext, type QueuePick } from '../srs/session';
@@ -16,11 +16,21 @@ import { RhythmTrial } from './RhythmTrial';
 import { describeTaps, type TapResult } from '../music/rhythm';
 import { songById } from '../songs/library';
 import { PassageTrial, recordBars } from './SongPlay';
+import { ReviewHome } from './ReviewHome';
 
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
-  onNavigate: (tab: 'Home' | 'Sight-read') => void;
+  onNavigate: (tab: 'Home' | 'Sight-read' | 'Lessons') => void;
+  /** What's being reviewed: a lesson unit or deck ("course:…", "deck:…"), "all", or null for the list to choose from. */
+  selection: string | null;
+  onSelect: (key: string | null) => void;
+}
+
+/** Review: pick a lesson unit, a deck or everything, then go through its due cards. */
+export function Review(props: Props) {
+  if (props.selection === null) return <ReviewHome data={props.data} onSelect={props.onSelect} onNavigate={props.onNavigate} />;
+  return <ReviewSession {...props} selection={props.selection} />;
 }
 
 type Phase = 'question' | 'correct' | 'wrong';
@@ -35,7 +45,7 @@ interface Undo {
   logCount: number;
 }
 
-export function Review({ data, update, onNavigate }: Props) {
+function ReviewSession({ data, update, onNavigate, selection, onSelect }: Props & { selection: string }) {
   const [pick, setPick] = useState<QueuePick | null>(null);
   const [phase, setPhase] = useState<Phase>('question');
   const [wrongNotes, setWrongNotes] = useState<number[]>([]);
@@ -54,15 +64,17 @@ export function Review({ data, update, onNavigate }: Props) {
   const advanceTimer = useRef<number | undefined>(undefined);
   const lastCard = useRef<string | undefined>(undefined);
 
-  // Course units open as you learn, so the card list is derived from progress; keep its identity stable between renders.
-  const available = studyCards({ enabledDecks: data.settings.enabledDecks, courses: data.courses, states: data.cards });
+  // Only learned cards are reviewed: new ones are met in learning sessions (Lessons and Decks).
+  const item =
+    selection === 'all'
+      ? null
+      : reviewSections(data)
+          .flatMap((s) => s.groups.flatMap((g) => g.items))
+          .find((i) => i.key === selection);
+  const available = item ? item.cards : reviewCards({ enabledDecks: data.settings.enabledDecks, states: data.cards });
   const cardsKey = available.map((c) => c.id).join(',');
   const cards = useMemo(() => available, [cardsKey]);
-  const activeCourses = COURSES.filter((c) => data.settings.enabledDecks.includes(c.id)).map((c) => {
-    const { open } = courseProgress(c, data.cards, data.courses[c.id]);
-    return c.units![open].title;
-  });
-  const limits = dailyLimits(data, Date.now());
+  const limits = { ...dailyLimits(data, Date.now()), newRemaining: 0 };
   const queueInput = { cards, states: data.cards, now: Date.now(), ...limits, lastCardId: lastCard.current };
   const counts = countQueue(queueInput);
 
@@ -245,12 +257,16 @@ export function Review({ data, update, onNavigate }: Props) {
   const left = (
     <>
       <div className="side-block">
-        <span className="eyebrow">Today</span>
+        <span className="eyebrow">Reviewing</span>
+        <b className="learn-title">{item ? item.title : 'Everything due'}</b>
+        {item && <span className="muted small">{item.parent}</span>}
+        <button className="small link" onClick={() => onSelect(null)}>
+          Choose something else
+        </button>
+      </div>
+      <div className="side-block">
+        <span className="eyebrow">Left</span>
         <div className="big-counts">
-          <span className="c-new">
-            {counts.newCount}
-            <small>New</small>
-          </span>
           <span className="c-learn">
             {counts.learning}
             <small>Learn</small>
@@ -262,13 +278,6 @@ export function Review({ data, update, onNavigate }: Props) {
         </div>
         {reviewedNow > 0 && <span className="muted small">{reviewedNow} answered this session</span>}
       </div>
-      {activeCourses.map((t) => (
-        <div className="side-block" key={t}>
-          <span className="eyebrow">Course</span>
-          <span>{t}</span>
-        </div>
-      ))}
-      {pick?.isNew && <span className="badge">New card</span>}
     </>
   );
 
@@ -294,11 +303,21 @@ export function Review({ data, update, onNavigate }: Props) {
       )}
       <div className="side-block">
         <label className="opt-check">
-          <input id="opt-labels" type="checkbox" checked={data.settings.showKeyLabels} onChange={(e) => set('showKeyLabels', e.target.checked)} />
+          <input
+            id="opt-labels"
+            type="checkbox"
+            checked={data.settings.showKeyLabels}
+            onChange={(e) => set('showKeyLabels', e.target.checked)}
+          />
           Label C keys
         </label>
         <label className="opt-check">
-          <input id="opt-sound" type="checkbox" checked={data.settings.onscreenSound} onChange={(e) => set('onscreenSound', e.target.checked)} />
+          <input
+            id="opt-sound"
+            type="checkbox"
+            checked={data.settings.onscreenSound}
+            onChange={(e) => set('onscreenSound', e.target.checked)}
+          />
           Sound for on-screen keys
         </label>
       </div>
@@ -318,43 +337,37 @@ export function Review({ data, update, onNavigate }: Props) {
       .reduce((m, s) => Math.min(m, s.due), Infinity);
     const empty = !cards.length ? (
       <div className="result panel">
-        <h3>Nothing to study yet</h3>
-        <p className="muted">Start the beginner course or pick some decks, and your cards will appear here.</p>
+        <h3>Nothing to review here yet</h3>
+        <p className="muted">Learn some cards first: open a unit in Lessons, or a deck, and play through it.</p>
         <div className="row" style={{ justifyContent: 'center' }}>
-          <button className="primary" onClick={() => onNavigate('Home')}>
-            Get started
+          <button className="primary" onClick={() => onNavigate('Lessons')}>
+            Go to Lessons
           </button>
         </div>
       </div>
     ) : (
       <div className="result panel">
-        <h3>All done for now</h3>
+        <h3>{item ? `${item.title}: all done for now` : 'All done for now'}</h3>
         <p>{reviewedNow ? `You answered ${reviewedNow} card${reviewedNow === 1 ? '' : 's'} this session.` : 'Nothing is due.'}</p>
         {Number.isFinite(nextDue) && <p className="muted">Next card due in {formatDelay(Math.max(0, nextDue - Date.now()))}.</p>}
         <div className="row" style={{ justifyContent: 'center' }}>
-          <button className="primary" onClick={() => onNavigate('Sight-read')}>
-            Practice sight-reading
+          <button className="primary" onClick={() => onSelect(null)}>
+            Review something else
           </button>
+          <button onClick={() => onNavigate('Sight-read')}>Sight-read</button>
           <button onClick={showNext}>Check again</button>
         </div>
       </div>
     );
-    return (
-      <PlayScreen
-        left={left}
-        right={right}
-        music={empty}
-        status=""
-        showLabels={data.settings.showKeyLabels}
-        bottom={<GradeBar />}
-      />
-    );
+    return <PlayScreen left={left} right={right} music={empty} status="" showLabels={data.settings.showKeyLabels} bottom={<GradeBar />} />;
   }
 
   const color = phase === 'correct' ? COLORS.ok : phase === 'wrong' ? COLORS.miss : undefined;
   // Show the unfuzzed interval on the buttons, as Anki does.
   const preview = (g: Grade) => formatDelay(schedule(pick.state, g, Date.now(), { ...data.settings.srs, fuzz: false }).due - Date.now());
-  const knownPreview = pick.isNew ? formatDelay(markKnown(pick.state, Date.now(), { ...data.settings.srs, fuzz: false }).state.due - Date.now()) : '';
+  const knownPreview = pick.isNew
+    ? formatDelay(markKnown(pick.state, Date.now(), { ...data.settings.srs, fuzz: false }).state.due - Date.now())
+    : '';
 
   const status =
     phase === 'question' ? (
@@ -371,8 +384,8 @@ export function Review({ data, update, onNavigate }: Props) {
       )
     ) : phase === 'correct' && markedKnown ? (
       <>
-        ✓ {autoKnown ? `Played in ${(lastMs / 1000).toFixed(1)}s, so it's marked as known` : 'Marked as known'}. It'll come back in {knownPreview} to
-        check.
+        ✓ {autoKnown ? `Played in ${(lastMs / 1000).toFixed(1)}s, so it's marked as known` : 'Marked as known'}. It'll come back in{' '}
+        {knownPreview} to check.
       </>
     ) : phase === 'correct' ? (
       <>✓ {pick.card.rhythm || pick.card.passage ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`}</>
@@ -414,7 +427,11 @@ export function Review({ data, update, onNavigate }: Props) {
           preview={preview}
           onPick={setChosen}
           onContinue={phase === 'wrong' ? continueAfterWrong : undefined}
-          known={pick.isNew && (phase === 'question' || markedKnown) ? { preview: knownPreview, lit: markedKnown, onClick: () => markAsKnown() } : undefined}
+          known={
+            pick.isNew && (phase === 'question' || markedKnown)
+              ? { preview: knownPreview, lit: markedKnown, onClick: () => markAsKnown() }
+              : undefined
+          }
         />
       }
     />

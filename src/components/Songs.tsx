@@ -1,4 +1,4 @@
-import { ArrowLeft, Upload } from 'lucide-react';
+import { ArrowLeft, Play, Upload } from 'lucide-react';
 import { lazy, Suspense, useRef, useState } from 'react';
 import { keyLabel } from '../music/notes';
 import { meterName } from '../music/rhythm';
@@ -23,6 +23,7 @@ import { weakBars } from '../songs/play';
 import type { Hands } from '../songs/score';
 import type { AppData } from '../storage';
 import { Progress } from './Group';
+import type { LearnPlan } from './LearnSession';
 import { ScoreView } from './ScoreView';
 
 export interface SongFocus {
@@ -41,6 +42,8 @@ interface Props {
   onPractice: (f: SongFocus) => void;
   /** The library changed (a song was imported or removed). */
   onLibraryChange: () => void;
+  /** Start a learning session (and study the song). */
+  onLearn: (plan: LearnPlan, deckId: string) => void;
 }
 
 const isSeen = (data: AppData, id: string) => !!data.cards[id] && data.cards[id].status !== 'new';
@@ -62,25 +65,29 @@ const summary = (song: Song) => {
 };
 
 /** Songs: learn real pieces a few bars at a time, as flash cards and in free practice. */
-export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryChange }: Props) {
+export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryChange, onLearn }: Props) {
   // Transcribing a PDF: a new file, or an imported song's transcription (with its PDF) to correct.
-  const [transcribe, setTranscribe] = useState<{ file?: { bytes: Uint8Array; name: string }; songId?: string; pdf?: Uint8Array | null } | null>(null);
+  const [transcribe, setTranscribe] = useState<{
+    file?: { bytes: Uint8Array; name: string };
+    songId?: string;
+    pdf?: Uint8Array | null;
+  } | null>(null);
   const song = openSong ? songById(openSong) : undefined;
   if (transcribe) {
     const editing = transcribe.songId ? songById(transcribe.songId) : undefined;
     return (
       <Suspense fallback={<p className="muted">Opening the PDF editor…</p>}>
-      <PdfTranscriber
-        file={transcribe.file}
-        song={editing}
-        songPdf={transcribe.pdf}
-        onDone={(id) => {
-          setTranscribe(null);
-          onLibraryChange();
-          onOpen(id);
-        }}
-        onCancel={() => setTranscribe(null)}
-      />
+        <PdfTranscriber
+          file={transcribe.file}
+          song={editing}
+          songPdf={transcribe.pdf}
+          onDone={(id) => {
+            setTranscribe(null);
+            onLibraryChange();
+            onOpen(id);
+          }}
+          onCancel={() => setTranscribe(null)}
+        />
       </Suspense>
     );
   }
@@ -93,6 +100,7 @@ export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryCha
         onBack={() => onOpen(null)}
         onPractice={onPractice}
         onLibraryChange={onLibraryChange}
+        onLearn={onLearn}
         onEditTranscription={async () => setTranscribe({ songId: song.id, pdf: await songPdf(song.id) })}
       />
     );
@@ -175,9 +183,9 @@ function SongList({
       <section className="panel">
         <h3>Your songs</h3>
         <p className="muted small">
-          Import a score as MusicXML (.musicxml, .xml or compressed .mxl), which MuseScore, Sibelius, Finale and Dorico all export, or
-          as a PDF. A PDF is a picture of the music, so it's read into notes first (by Claude, with your API key, or typed in by you),
-          and you check the result against the page. Imported songs are kept in this browser, so hold on to your files.
+          Import a score as MusicXML (.musicxml, .xml or compressed .mxl), which MuseScore, Sibelius, Finale and Dorico all export, or as a
+          PDF. A PDF is a picture of the music, so it's read into notes first (by Claude, with your API key, or typed in by you), and you
+          check the result against the page. Imported songs are kept in this browser, so hold on to your files.
         </p>
         {mine.length > 0 && <ul className="song-list">{mine.map(row)}</ul>}
         <div className="row">
@@ -205,6 +213,7 @@ function SongPage({
   onBack,
   onPractice,
   onLibraryChange,
+  onLearn,
   onEditTranscription,
 }: {
   data: AppData;
@@ -213,6 +222,7 @@ function SongPage({
   onBack: () => void;
   onPractice: (f: SongFocus) => void;
   onLibraryChange: () => void;
+  onLearn: Props['onLearn'];
   onEditTranscription: () => void;
 }) {
   const deckId = songDeckId(song.id);
@@ -228,6 +238,9 @@ function SongPage({
     update((d) => {
       d.songs[song.id] = { ...(d.songs[song.id] ?? DEFAULT_SONG_OPTIONS), ...o };
     });
+  const unlearned = cards.filter((c) => !isSeen(data, c.id));
+  const batch = unlearned.slice(0, Math.max(1, data.settings.newPerDay));
+  const learnNext = () => onLearn({ title: song.title, source: 'Songs', cards: batch, reviewKey: `deck:${deckId}` }, deckId);
   const toggleLearning = () =>
     update((d) => {
       d.settings.enabledDecks = learning ? d.settings.enabledDecks.filter((x) => x !== deckId) : [...d.settings.enabledDecks, deckId];
@@ -275,11 +288,16 @@ function SongPage({
           <label className="check">
             <input id="song-learn" type="checkbox" checked={learning} onChange={toggleLearning} />
             <span>
-              <b>Learn this song in Review</b>
-              <small className="muted"> · {cards.length} passages, introduced with your new cards</small>
+              <b>Study this song</b>
+              <small className="muted"> · {cards.length} passages: learn a few at a time, then they come back in Review</small>
             </span>
           </label>
-          {learning && <Progress {...p} />}
+          <span className="row">
+            {learning && <Progress {...p} />}
+            <button className="small learn-btn" disabled={!batch.length} onClick={learnNext}>
+              <Play size={11} fill="currentColor" /> {batch.length ? `Learn next ${batch.length}` : 'All learned'}
+            </button>
+          </span>
         </div>
         <div className="row">
           <label className="opt inline">
@@ -293,7 +311,12 @@ function SongPage({
             </select>
           </label>
           <label className="check">
-            <input id="song-hands" type="checkbox" checked={opts.separateHands} onChange={(e) => setOpts({ separateHands: e.target.checked })} />
+            <input
+              id="song-hands"
+              type="checkbox"
+              checked={opts.separateHands}
+              onChange={(e) => setOpts({ separateHands: e.target.checked })}
+            />
             Hands separately first
           </label>
         </div>
@@ -305,7 +328,9 @@ function SongPage({
           <h3>Bars</h3>
           <div className="row">
             {weak.length > 0 && (
-              <button onClick={() => onPractice({ song: song.id, from: weak[0], to: weak[0], hands: 'both' })}>Practice bars to work on ({weak.length})</button>
+              <button onClick={() => onPractice({ song: song.id, from: weak[0], to: weak[0], hands: 'both' })}>
+                Practice bars to work on ({weak.length})
+              </button>
             )}
             <button className="primary" onClick={() => onPractice({ song: song.id, from: 0, to: measures.length - 1, hands: 'both' })}>
               Practice the whole song
@@ -331,8 +356,8 @@ function SongPage({
           })}
         </div>
         <p className="muted small legend">
-          <span className="bar-cell learned" /> learned <span className="bar-cell started" /> learning <span className="bar-cell weak" /> slips lately
-          · click a bar to practice its passage
+          <span className="bar-cell learned" /> learned <span className="bar-cell started" /> learning <span className="bar-cell weak" />{' '}
+          slips lately · click a bar to practice its passage
         </p>
       </section>
 
@@ -355,7 +380,9 @@ function SongPage({
           </button>
         </div>
       )}
-      {song.source === 'corpus' && <p className="muted small">Encoded for PianoSRS from a public-domain work; this encoding is released as CC0.</p>}
+      {song.source === 'corpus' && (
+        <p className="muted small">Encoded for PianoSRS from a public-domain work; this encoding is released as CC0.</p>
+      )}
     </div>
   );
 }

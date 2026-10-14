@@ -2,11 +2,17 @@
 
 Learn to read sheet music with spaced repetition (like Anki), using a real MIDI piano as the answer button.
 
-- **Review**: flash cards show a note, interval or chord on a treble, bass or grand staff. Play it on your keyboard. The app grades you
+- **Learn, then review**: new cards are met in a **learning session**, never in Review. Click a unit in *Lessons* (or *Learn* on
+  a deck or song) and play through its cards at your own pace: each tells you if you played it right (and shows the right keys
+  if not), with no grades; *Next* (Enter) moves on when you're ready, and *I already know this one* skips one you can read.
+  Cards you played enter the schedule (first review in about 10 minutes, or a minute if you missed it first time); ones you
+  skipped stay new. *Move on after a right answer* advances by itself.
+- **Review**: only cards you've learned, listed by where they came from (Lessons by course and unit, Decks by group, Songs),
+  each with what's due; review one of them or everything. Flash cards show a note, interval or chord on a treble, bass or
+  grand staff. Play it on your keyboard. The app grades you
   automatically: a wrong key counts as *Again*, and a right answer is *Easy*, *Good* or *Okay* (Anki's *Hard*) depending on how fast you
-  played it. The first time you see a new card, timing matters much less: Good within 5 seconds, Okay within 15, and an
-  answer within a second marks it Known (all adjustable). Speed is judged from its next review on. Scheduling uses **FSRS** (the default) or Anki's classic **SM-2**, with learning and relearning steps, daily
-  new-card and review limits, and undo. New cards also have a **Known** button (as in JPDB) for notes you can already read: it counts as answering
+  played it. Scheduling uses **FSRS** (the default) or Anki's classic **SM-2**, with learning and relearning steps, daily
+  review limits, and undo. *I already know this one* in a learning session (as JPDB's *Known*) counts as answering
   Good through the learning steps and once more, so the card comes back in a few days to check. All of Anki's scheduling options are in *Settings → Scheduling*: steps, desired
   retention and FSRS parameters (paste optimised ones from Anki), or SM-2's graduating/easy intervals, starting ease, easy
   bonus, interval modifier, hard and new intervals; plus maximum interval, fuzz, when the next day starts and the learn-ahead
@@ -118,15 +124,16 @@ cards have their own progress (ids starting with `test:`), so practicing them ne
 start a test again. A quick run-through:
 
 1. Plug the piano in (USB, or USB-OTG on Android), open the app in Chrome, allow MIDI. The sidebar should show the device name.
-2. Turn on all five test decks and the test course, then **Review**: notes in both clefs and on ledger lines, both hands at
-   once, chords, sharps and flats, key signatures (play the tonic anywhere), and rhythm cards (tap with the metronome).
+2. On **Decks**, press *Learn* on each of the five test decks: notes in both clefs and on ledger lines, both hands at once,
+   chords, sharps and flats, key signatures (play the tonic anywhere), and rhythm cards (tap with the metronome). Then open
+   **Review**: the test decks are listed with their cards due.
 3. Check the grades feel fair: fast right answers Easy, slower ones Good or Okay. Adjust the thresholds in **Settings**.
 4. Rhythm cards: if results say you're consistently "a bit late" (or early), set **Settings → Latency adjustment** by about
    that many milliseconds.
 5. **Sight-read** in both modes, on the grand staff, with *Learned rhythms* on, and try *In time* at a slow tempo.
-6. In **Lessons**, answer the test course's first unit with quick right answers: unit 2 should open.
-7. **Songs**: open *Ode to Joy*, click bar 1 and play it hands together, then try *In time*. Turn on *Learn this song* and the
-   passages appear in Review.
+6. In **Lessons**, learn the test course's first unit, then review it with quick right answers: unit 2 should open.
+7. **Songs**: open *Ode to Joy*, click bar 1 and play it hands together, then try *In time*. *Learn next* plays through its first
+   passages; they then appear in Review under Songs.
 
 ## Desktop app
 
@@ -171,6 +178,7 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/srs/course.ts` | The two courses, unit by unit |
 | `src/srs/custom.ts` | Custom decks: the choices that define one, and the cards they make |
 | `src/srs/generators.ts` | Card builders shared by decks and courses (notes in keys, spelled chords, hand positions, rhythms) |
+| `src/srs/learn.ts` | Learning sessions: putting new cards into the schedule, deck batches, Review's sections |
 | `src/srs/study.ts` | Course unlocking and which cards are available to study / read |
 | `src/srs/session.ts` | Picks the next card (learning → reviews → new → learn-ahead) |
 | `src/srs/grading.ts` | Turns correctness + reaction time into a grade |

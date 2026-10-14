@@ -68,16 +68,21 @@ export function studyCards({ enabledDecks, courses, states }: StudyInput): Card[
 }
 
 /**
- * Cards you can be expected to read in sight-reading practice: ones you've started learning, plus
- * the units you skipped in a course (you said you already know those).
+ * Cards you can be expected to read in sight-reading practice: ones you've learned from the decks and courses you
+ * study (in any unit), plus the units you skipped in a course (you said you already know those).
  */
 export function knownCards(input: StudyInput): Card[] {
-  const out = studyCards(input).filter((c) => isSeen(input.states[c.id]));
-  const ids = new Set(out.map((c) => c.id));
+  const out: Card[] = [];
+  const ids = new Set<string>();
+  const add = (c: Card) => !ids.has(c.id) && ids.add(c.id) && out.push(c);
+  for (const deck of DECKS) {
+    if (!input.enabledDecks.includes(deck.id)) continue;
+    for (const c of deck.cards) if (isSeen(input.states[c.id])) add(c);
+  }
   for (const deck of DECKS) {
     if (!input.enabledDecks.includes(deck.id) || deck.kind !== 'course' || !deck.units) continue;
     const start = input.courses[deck.id]?.start ?? 0;
-    for (const c of deck.units.slice(0, start).flatMap((u) => u.cards)) if (!ids.has(c.id) && ids.add(c.id)) out.push(c);
+    for (const c of deck.units.slice(0, start).flatMap((u) => u.cards)) add(c);
   }
   return out;
 }

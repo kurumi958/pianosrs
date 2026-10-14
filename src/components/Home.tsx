@@ -4,17 +4,19 @@ import { formatDelay } from '../srs/scheduler';
 import { todayPlan } from '../srs/today';
 import type { AppData } from '../storage';
 import type { Tab } from '../App';
+import type { LearnPlan } from './LearnSession';
 
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
   onNavigate: (tab: Tab) => void;
+  onLearn: (plan: LearnPlan, deckId: string) => void;
 }
 
 const dateLine = () => new Date().toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' });
 
 /** Home: the day's plan — review what's due, continue the course, then read something new. */
-export function Home({ data, update, onNavigate }: Props) {
+export function Home({ data, update, onNavigate, onLearn }: Props) {
   const plan = todayPlan(data);
 
   const startCourse = () =>
@@ -37,7 +39,9 @@ export function Home({ data, update, onNavigate }: Props) {
         <section className="panel setup-banner">
           <span>
             <b>First time here? Set up your piano.</b>
-            <small className="muted">Connect it, check it sends the right notes and its size, and calibrate timing. About two minutes.</small>
+            <small className="muted">
+              Connect it, check it sends the right notes and its size, and calibrate timing. About two minutes.
+            </small>
           </span>
           <span className="row">
             <button className="small link" onClick={() => update((d) => void (d.settings.setupDone = true))}>
@@ -77,7 +81,12 @@ export function Home({ data, update, onNavigate }: Props) {
   }
 
   const reviewDone = plan.total === 0;
-  const { newCount, learning, review } = plan.counts;
+  const { learning, review } = plan.counts;
+  const learnUnit = (id: string, i: number) => {
+    const course = COURSE_DECKS.find((c) => c.id === id)!;
+    const u = course.units![i];
+    onLearn({ title: u.title, source: course.name, cards: u.cards, reviewKey: `course:${id}:${i}` }, id);
+  };
 
   return (
     <div className="page-inner home">
@@ -92,9 +101,6 @@ export function Home({ data, update, onNavigate }: Props) {
               <p>{plan.nextDue ? `The next card is due in ${formatDelay(plan.nextDue - Date.now())}.` : 'Nothing is waiting.'}</p>
             ) : (
               <div className="due-counts">
-                <span>
-                  <b className="c-new">{newCount}</b> new
-                </span>
                 <span>
                   <b className="c-learn">{learning}</b> learning
                 </span>
@@ -128,7 +134,13 @@ export function Home({ data, update, onNavigate }: Props) {
                 </span>
               </div>
             </div>
-            <button onClick={() => onNavigate('Lessons')}>View unit</button>
+            {c.learnIndex !== null ? (
+              <button className={reviewDone ? 'primary' : ''} onClick={() => learnUnit(c.id, c.learnIndex!)}>
+                Learn this unit
+              </button>
+            ) : (
+              <button onClick={() => onNavigate('Lessons')}>Open Lessons</button>
+            )}
           </li>
         ))}
 

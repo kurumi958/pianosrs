@@ -1,18 +1,22 @@
-import { Plus } from 'lucide-react';
+import { Play, Plus } from 'lucide-react';
 import { useState } from 'react';
 import { type CustomDeckSpec, newCustomDeck } from '../srs/custom';
 import { DECK_GROUPS, type DeckDef, DECKS, type Level, LEVEL_LABEL } from '../srs/deck';
 import type { AppData } from '../storage';
+import { nextBatch } from '../srs/learn';
 import { CustomDeckEditor } from './CustomDeckEditor';
+import type { LearnPlan } from './LearnSession';
 import { Group, Progress } from './Group';
 
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
+  /** Start a learning session (and study the deck). */
+  onLearn: (plan: LearnPlan, deckId: string) => void;
 }
 
 /** Decks: drill one skill each, grouped by topic. Turn on any mix, with or without a course. */
-export function Decks({ data, update }: Props) {
+export function Decks({ data, update, onLearn }: Props) {
   const [level, setLevel] = useState<Level | 'all'>('all');
   const [editing, setEditing] = useState<{ spec: CustomDeckSpec; existing: boolean } | null>(null);
   const isOn = (id: string) => data.settings.enabledDecks.includes(id);
@@ -52,8 +56,12 @@ export function Decks({ data, update }: Props) {
     });
   };
 
-  const row = (deck: DeckDef, extra?: React.ReactNode) => {
+  const batchSize = Math.max(1, data.settings.newPerDay);
+  const learn = (deck: DeckDef, group: string) =>
+    onLearn({ title: deck.name, source: group, cards: nextBatch(deck, data.cards, batchSize), reviewKey: `deck:${deck.id}` }, deck.id);
+  const row = (deck: DeckDef, group: string, extra?: React.ReactNode) => {
     const st = stats(deck);
+    const fresh = st.total - st.seen;
     return (
       <li className="deck-row" key={deck.id}>
         <label>
@@ -67,6 +75,14 @@ export function Decks({ data, update }: Props) {
           </span>
         </label>
         <Progress {...st} />
+        <button
+          className="small learn-btn"
+          disabled={!fresh}
+          onClick={() => learn(deck, group)}
+          title={fresh ? `Learn the next ${Math.min(fresh, batchSize)} new cards` : 'Every card in this deck has been learned'}
+        >
+          <Play size={11} fill="currentColor" /> {fresh ? `Learn ${Math.min(fresh, batchSize)}` : 'Learned'}
+        </button>
         {extra}
         {st.seen > 0 && (
           <button className="small link" onClick={() => reset(deck)}>
@@ -92,8 +108,8 @@ export function Decks({ data, update }: Props) {
       <header className="page-head">
         <h2>Decks</h2>
         <p>
-          Each deck drills one skill. Turn on whichever you want, on their own or alongside a course; new cards come from them a few a day.
-          Within each group, decks are in the order you'd learn them.
+          Each deck drills one skill. <b>Learn</b> plays through a deck's next few new cards at your own pace; after that they come back in
+          Review. A ticked deck is one you're studying. Within each group, decks are in the order you'd learn them.
         </p>
       </header>
       <div className="level-filter" role="radiogroup" aria-label="Level">
@@ -118,6 +134,7 @@ export function Decks({ data, update }: Props) {
             {custom.map(({ spec, deck }) =>
               row(
                 deck!,
+                'Your decks',
                 <span className="row deck-actions">
                   <button className="small link" onClick={() => setEditing({ spec, existing: true })}>
                     edit
@@ -152,7 +169,7 @@ export function Decks({ data, update }: Props) {
             on={active > 0}
             defaultOpen={active > 0}
           >
-            <ul className="deck-list">{decks.map((deck) => row(deck))}</ul>
+            <ul className="deck-list">{decks.map((deck) => row(deck, g.name))}</ul>
           </Group>
         );
       })}

@@ -18,11 +18,12 @@ import { type SongFocus, Songs } from './components/Songs';
 import { SongPractice } from './components/SongPlay';
 import { loadImportedSongs, songById, syncSongDecks } from './songs/library';
 import { syncCustomDecks } from './srs/custom';
+import { type LearnPlan, LearnSession } from './components/LearnSession';
 
 export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Songs' | 'Stats' | 'Settings' | 'Setup';
 
-/** Screens you play on: these use the practice layout with the keyboard. */
-const PLAY_TABS: Tab[] = ['Review', 'Sight-read'];
+/** Screens you play on: these use the practice layout with the keyboard. (Review does once something is chosen.) */
+const PLAY_TABS: Tab[] = ['Sight-read'];
 const SIDEBAR_KEY = 'pianosrs:sidebar';
 
 function useFullscreen(): [boolean, () => void] {
@@ -132,12 +133,32 @@ export function App() {
     setSongPractice(f);
     setTab('Songs');
   };
+  /** What Review is showing: null for the list of lessons and decks, else the one chosen (or "all"). */
+  const [reviewing, setReviewing] = useState<string | null>(null);
+  /** A learning session in progress, shown over the page it was started from. */
+  const [learning, setLearning] = useState<LearnPlan | null>(null);
+  const startLearning = (plan: LearnPlan, deckId: string) => {
+    if (!plan.cards.length) return;
+    // Learning from a deck or course means studying it: its cards come back in Review.
+    update((d) => {
+      if (!d.settings.enabledDecks.includes(deckId)) d.settings.enabledDecks.push(deckId);
+      if (deckId.startsWith('course-')) d.courses[deckId] ??= { start: 0, unlocked: 0 };
+    });
+    setLearning(plan);
+  };
   const navigate = (t: Tab) => {
     setSongPractice(null);
+    setLearning(null);
+    if (t === 'Review') setReviewing(null);
     setTab(t);
   };
+  const review = (key: string | null) => {
+    setLearning(null);
+    setReviewing(key);
+    setTab('Review');
+  };
 
-  const playing = PLAY_TABS.includes(tab) || (tab === 'Songs' && !!practiceSong);
+  const playing = !!learning || PLAY_TABS.includes(tab) || (tab === 'Review' && reviewing !== null) || (tab === 'Songs' && !!practiceSong);
 
   return (
     <div className="app">
@@ -152,10 +173,22 @@ export function App() {
       />
 
       <main className={playing ? 'play' : 'page'}>
-        {tab === 'Home' && <Home data={data} update={update} onNavigate={navigate} />}
-        {tab === 'Review' && <Review data={data} update={update} onNavigate={navigate} />}
-        {tab === 'Sight-read' && <SightRead data={data} update={update} focus={focus} onEndFocus={() => setFocus(null)} />}
-        {tab === 'Work on' && (
+        {learning && (
+          <LearnSession
+            key={learning.reviewKey + learning.title}
+            plan={learning}
+            data={data}
+            update={update}
+            onClose={() => setLearning(null)}
+            onReview={review}
+          />
+        )}
+        {!learning && tab === 'Home' && <Home data={data} update={update} onNavigate={navigate} onLearn={startLearning} />}
+        {!learning && tab === 'Review' && (
+          <Review key={reviewing ?? 'list'} data={data} update={update} onNavigate={navigate} selection={reviewing} onSelect={review} />
+        )}
+        {!learning && tab === 'Sight-read' && <SightRead data={data} update={update} focus={focus} onEndFocus={() => setFocus(null)} />}
+        {!learning && tab === 'Work on' && (
           <WorkOn
             data={data}
             update={update}
@@ -168,9 +201,10 @@ export function App() {
             }}
           />
         )}
-        {tab === 'Lessons' && <Lessons data={data} update={update} />}
-        {tab === 'Decks' && <Decks data={data} update={update} />}
-        {tab === 'Songs' &&
+        {!learning && tab === 'Lessons' && <Lessons data={data} update={update} onLearn={startLearning} />}
+        {!learning && tab === 'Decks' && <Decks data={data} update={update} onLearn={startLearning} />}
+        {!learning &&
+          tab === 'Songs' &&
           (practiceSong && songPractice ? (
             <SongPractice
               key={`${songPractice.song}:${songPractice.from}:${songPractice.to}:${songPractice.hands}`}
@@ -183,11 +217,19 @@ export function App() {
               onClose={() => setSongPractice(null)}
             />
           ) : (
-            <Songs data={data} update={update} openSong={openSong} onOpen={setOpenSong} onPractice={practiceSongBars} onLibraryChange={libraryChanged} />
+            <Songs
+              data={data}
+              update={update}
+              openSong={openSong}
+              onOpen={setOpenSong}
+              onPractice={practiceSongBars}
+              onLibraryChange={libraryChanged}
+              onLearn={startLearning}
+            />
           ))}
-        {tab === 'Stats' && <Stats data={data} />}
-        {tab === 'Settings' && <Settings data={data} update={update} replace={replace} onSetup={() => navigate('Setup')} />}
-        {tab === 'Setup' && <Setup data={data} update={update} onFinish={() => navigate('Home')} />}
+        {!learning && tab === 'Stats' && <Stats data={data} />}
+        {!learning && tab === 'Settings' && <Settings data={data} update={update} replace={replace} onSetup={() => navigate('Setup')} />}
+        {!learning && tab === 'Setup' && <Setup data={data} update={update} onFinish={() => navigate('Home')} />}
       </main>
 
       {!portraitOk && (

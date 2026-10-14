@@ -61,6 +61,8 @@ export interface Settings {
   theme: 'system' | 'light' | 'dark';
   /** Label the C keys on the on-screen piano. Off by default so you read the staff, not the keyboard. */
   showKeyLabels: boolean;
+  /** Learning sessions: move to the next card a moment after a right answer. */
+  learnAutoAdvance: boolean;
   /** "all" listens to every connected MIDI input. */
   midiInput: string;
   /** Play a tone for on-screen / computer-keyboard input (a real piano makes its own sound). */
@@ -86,6 +88,7 @@ export const DEFAULT_SETTINGS: Settings = {
   melodic: true,
   sightKey: 'learned',
   showKeyLabels: false,
+  learnAutoAdvance: false,
   theme: 'system',
   rhythmBpm: 72,
   sightMode: 'wait',

@@ -141,7 +141,7 @@ export function SchedulingSettings({ data, update }: Props) {
       )}
 
       <h4>Daily limits</h4>
-      <Num id="srs-new" label="New cards per day" value={data.settings.newPerDay} min={0} max={9999} onChange={(v) => update((d) => void (d.settings.newPerDay = v))} />
+      <Num id="srs-new" label="New cards per deck learning session" value={data.settings.newPerDay} min={0} max={9999} onChange={(v) => update((d) => void (d.settings.newPerDay = v))} />
       <Num id="srs-reviews" label="Maximum reviews per day" value={srs.maxReviewsPerDay} min={0} max={9999} onChange={(v) => set('maxReviewsPerDay', v)} />
 
       <h4>Learning</h4>

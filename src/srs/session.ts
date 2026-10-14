@@ -57,14 +57,17 @@ export interface QueueCounts {
   review: number;
 }
 
+/** What's left to do. Learning cards count from as early as they can be shown (the learn-ahead window), as in pickNext. */
 export function countQueue(q: QueueInput): QueueCounts {
   let learning = 0;
   let review = 0;
   let unseen = 0;
+  const ahead = q.learnAheadMs ?? 0;
   for (const card of q.cards) {
     const s = q.states[card.id];
     if (!s || s.status === 'new') unseen++;
-    else if (s.due <= q.now) s.status === 'review' ? review++ : learning++;
+    else if (s.status === 'review') s.due <= q.now && review++;
+    else if (s.due <= q.now + ahead) learning++;
   }
   return {
     newCount: Math.min(unseen, Math.max(0, q.newRemaining)),

@@ -1,14 +1,17 @@
-import { Check, ChevronRight, Lock } from 'lucide-react';
+import { Check, ChevronDown, Lock, Play } from 'lucide-react';
 import { useState } from 'react';
 import { COURSE_DECKS, type CourseUnit, type DeckDef } from '../srs/deck';
 import { courseProgress, type CourseState, type UnitProgress, UNIT_PASS_RATIO } from '../srs/study';
 import type { AppData } from '../storage';
 import { Group, Progress } from './Group';
+import type { LearnPlan } from './LearnSession';
 import { CardPreview } from './Staff';
 
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
+  /** Start a learning session (and study the course). */
+  onLearn: (plan: LearnPlan, deckId: string) => void;
 }
 
 const isLearned = (data: AppData, id: string) => {
@@ -17,24 +20,25 @@ const isLearned = (data: AppData, id: string) => {
 };
 
 /** Lessons: courses that teach reading step by step, each a list of units that open as you learn. */
-export function Lessons({ data, update }: Props) {
+export function Lessons({ data, update, onLearn }: Props) {
   return (
     <div className="page-inner">
       <header className="page-head">
         <h2>Lessons</h2>
         <p>
-          Courses introduce notes in the order a method book teaches them. Each unit opens once you've learned most of the one before it.
+          Courses introduce notes in the order a method book teaches them. Click a unit to learn it: play through its cards at your own
+          pace, then they come back in Review. Each unit opens once you've learned most of the one before it.
         </p>
       </header>
       {COURSE_DECKS.map((course) => (
-        <Course key={course.id} course={course} data={data} update={update} />
+        <Course key={course.id} course={course} data={data} update={update} onLearn={onLearn} />
       ))}
       <p className="muted small">More courses can be added alongside this one; custom courses are on the list for later.</p>
     </div>
   );
 }
 
-function Course({ course, data, update }: { course: DeckDef; data: AppData; update: Props['update'] }) {
+function Course({ course, data, update, onLearn }: { course: DeckDef } & Props) {
   const units = course.units ?? [];
   const on = data.settings.enabledDecks.includes(course.id);
   const cs = data.courses[course.id] ?? { start: 0, unlocked: 0 };
@@ -54,6 +58,8 @@ function Course({ course, data, update }: { course: DeckDef; data: AppData; upda
       d.settings.enabledDecks = on ? d.settings.enabledDecks.filter((x) => x !== course.id) : [...d.settings.enabledDecks, course.id];
       d.courses[course.id] ??= { start: 0, unlocked: 0 };
     });
+  const learn = (i: number) =>
+    onLearn({ title: units[i].title, source: course.name, cards: units[i].cards, reviewKey: `course:${course.id}:${i}` }, course.id);
   const reset = () => {
     if (!window.confirm(`Forget all progress on the cards in "${course.name}"? Cards shared with decks are reset there too.`)) return;
     update((d) => {
@@ -105,17 +111,28 @@ function Course({ course, data, update }: { course: DeckDef; data: AppData; upda
           const isOpen = expanded === i;
           return (
             <li key={u.id} className={`unit ${p.status} ${on && i === open ? 'current' : ''} ${isOpen ? 'expanded' : ''}`}>
-              <button className="unit-row" aria-expanded={isOpen} onClick={() => setExpanded(isOpen ? null : i)}>
-                <span className="unit-icon" aria-label={p.status}>
-                  {p.status === 'done' ? <Check size={13} strokeWidth={3} /> : p.status === 'locked' ? <Lock size={11} /> : null}
-                </span>
-                <span className="unit-text">
-                  <b>{u.title}</b>
-                  <small>{u.summary}</small>
-                </span>
-                <Progress seen={p.seen} learned={p.learned} total={p.total} />
-                <ChevronRight size={16} className="unit-chev" />
-              </button>
+              <div className="unit-line">
+                <button className="unit-row" onClick={() => learn(i)} title={`Learn ${u.title}`}>
+                  <span className="unit-icon" aria-label={p.status}>
+                    {p.status === 'done' ? <Check size={13} strokeWidth={3} /> : p.status === 'locked' ? <Lock size={11} /> : null}
+                    <Play size={11} className="unit-play" fill="currentColor" />
+                  </span>
+                  <span className="unit-text">
+                    <b>{u.title}</b>
+                    <small>{u.summary}</small>
+                  </span>
+                  <Progress seen={p.seen} learned={p.learned} total={p.total} />
+                </button>
+                <button
+                  className="unit-expand"
+                  aria-expanded={isOpen}
+                  aria-label={isOpen ? `Hide the cards in ${u.title}` : `Show the cards in ${u.title}`}
+                  title={isOpen ? 'Hide cards' : 'Show cards'}
+                  onClick={() => setExpanded(isOpen ? null : i)}
+                >
+                  <ChevronDown size={17} className="unit-chev" />
+                </button>
+              </div>
               {isOpen && (
                 <UnitDetail
                   unit={u}
@@ -124,6 +141,7 @@ function Course({ course, data, update }: { course: DeckDef; data: AppData; upda
                   isStart={i === cs.start}
                   previous={units[i - 1]?.title}
                   data={data}
+                  onLearn={() => learn(i)}
                   onStartHere={() =>
                     setState((s) => {
                       s.start = i;
@@ -148,6 +166,7 @@ function UnitDetail({
   isStart,
   previous,
   data,
+  onLearn,
   onStartHere,
 }: {
   unit: CourseUnit;
@@ -156,6 +175,7 @@ function UnitDetail({
   isStart: boolean;
   previous?: string;
   data: AppData;
+  onLearn: () => void;
   onStartHere: () => void;
 }) {
   const status =
@@ -178,6 +198,9 @@ function UnitDetail({
             {index === 0 ? 'Start the course from the beginning' : 'Start the course here'}
           </button>
         )}
+        <button className="small primary" onClick={onLearn}>
+          <Play size={12} fill="currentColor" /> Learn this unit
+        </button>
       </div>
       <ul className="unit-cards" aria-label={`Cards in ${unit.title}`}>
         {unit.cards.map((c) => {

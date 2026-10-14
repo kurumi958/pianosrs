@@ -30,19 +30,24 @@ type Icon = ComponentType<{ size?: number; strokeWidth?: number }>;
 
 /** The menu, in sections like a book's table of contents. */
 const SECTIONS: { title: string; items: { tab: Tab; icon: Icon }[] }[] = [
+  { title: '', items: [{ tab: 'Home', icon: House }] },
   {
     title: 'Practice',
     items: [
-      { tab: 'Home', icon: House },
-      { tab: 'Review', icon: Layers },
       { tab: 'Sight-read', icon: Music },
       { tab: 'Work on', icon: Target },
     ],
   },
   {
-    title: 'Library',
+    title: 'Learn',
     items: [
       { tab: 'Lessons', icon: GraduationCap },
+      { tab: 'Review', icon: Layers },
+    ],
+  },
+  {
+    title: 'Library',
+    items: [
       { tab: 'Decks', icon: BookOpen },
       { tab: 'Songs', icon: FileMusic },
     ],
@@ -125,9 +130,11 @@ export function Sidebar({ data, tab, onNavigate, collapsed, onToggleCollapsed, f
         {ribbon.pos && <span className="ribbon" style={{ top: ribbon.pos.top, height: ribbon.pos.height }} aria-hidden />}
         {SECTIONS.map((s) => (
           <div key={s.title} className="nav-section">
-            <div className="nav-heading">
-              <span>{s.title}</span>
-            </div>
+            {s.title && (
+              <div className="nav-heading">
+                <span>{s.title}</span>
+              </div>
+            )}
             {s.items.map(({ tab: t, icon: Icon }) => (
               <button
                 key={t}
@@ -172,7 +179,7 @@ export function Sidebar({ data, tab, onNavigate, collapsed, onToggleCollapsed, f
                 )
               ) : (
                 <>
-                  <b>{dueReviews}</b> due · <b>{plan.counts.newCount}</b> new
+                  <b>{dueReviews}</b> to review
                 </>
               )}
             </span>

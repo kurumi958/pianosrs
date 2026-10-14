@@ -10,18 +10,22 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   retention and FSRS parameters (paste optimised ones from Anki), or SM-2's graduating/easy intervals, starting ease, easy
   bonus, interval modifier, hard and new intervals; plus maximum interval, fuzz, when the next day starts and the learn-ahead
   limit. Turning FSRS on rebuilds each card's memory by replaying its review history.
-- **Sight-read**: generated 4/4 phrases built from the notes you've learned, with weak notes weighted to come up more.
+- **Sight-read**: generated phrases built from the notes you've learned, with weak notes weighted to come up more.
   Play straight through (the cursor waits for the right note or chord); notes you stumble on become due in your flash cards
   straight away. Phrases can be treble only, bass only, or **two-handed on the grand staff**, with bar patterns for a right-hand
   melody over held left-hand notes (and the reverse), melodies passing between the hands, and hands together. *Stepwise* mode makes
-  lines move mostly by steps and skips, like real melodies. Phrases can be written in any major key, or in a random key you've
-  studied: notes take the key signature, and accidentals within a bar are printed against it. With *Rhythms* on, bars use the
-  rhythm patterns you've learned (one time signature per phrase). *Wait for me* mode waits for each note; *In time* mode
+  lines move mostly by steps and skips, like real melodies. Phrases can be written in any major key, a minor key (harmonic
+  minor, so the raised 7th appears as an accidental), or a random key you've studied: notes take the key signature, and
+  accidentals within a bar are printed against it. With *Rhythms* on, bars use the rhythm patterns you've learned (one time
+  signature per phrase, including 6/8 and 2/2); once you've learned ties, some notes are also held over the barline. *Wait for me* mode waits for each note; *In time* mode
   gives a one-bar count-in and keeps going with the metronome, judging every note on pitch and timing.
 - **Rhythm cards**: a one-bar rhythm on a single line. Press any key for a one-bar count-in, then tap the rhythm on any key
-  with the metronome. Every note must land within a quarter of a beat (80–180ms); the grade comes from how close you were.
-  Decks cover quarter/half/whole notes, 3/4 and 2/4 with dotted halves, rests, eighth notes and dotted quarters, and the
-  course introduces rhythms where the book does. MIDI timestamps and speaker latency are used for accuracy, and Settings has a
+  with the metronome. Every note must land within a quarter of a beat (80–180ms, and under half the gap to the next note
+  for fast sixteenths); the grade comes from how close you were. Decks cover quarter/half/whole notes, 3/4 and 2/4 with
+  dotted halves, rests, eighth notes, dotted quarters, sixteenths, dotted eighths, ties and syncopation, triplets, compound
+  time (6/8, 3/8, 9/8, 12/8, where the metronome clicks dotted quarters) and cut time (2/2, clicking halves), and the
+  course introduces rhythms where the book does. Tempo is always quarter notes per minute, so an eighth note lasts as long
+  in 6/8 as in 4/4. MIDI timestamps and speaker latency are used for accuracy, and Settings has a
   manual latency adjustment.
 - **Courses**: an *adult beginner course* that introduces notes unit by unit in the order of an adult method book
   (Faber's Adult Piano Adventures All-in-One Book 1, Units 2–16: first staff notes → bass C-D-E → treble spaces → G position →
@@ -31,7 +35,9 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
 - **Topic decks**: treble and bass clef notes on the staff, ledger lines, sharps and flats, intervals and triads, plus grand-staff
   decks: *which staff?* (single notes on either staff, middle C on both), *hands together* (one note per hand in C and G
   position) and *bass note + chord*, and key signatures: *name the key* (a signature on its own; play the major tonic in any
-  octave) and *reading in sharp / flat keys* (the notes a signature alters, key by key up to six sharps or flats). Cards are
+  octave) and *reading in sharp / flat keys* (the notes a signature alters, key by key up to six sharps or flats), and minor
+  keys: *name the key* (the same signatures read as minor) and *the raised 7th* (harmonic minor's leading tone, which the
+  signature doesn't show). Cards are
   shared by id between decks and the course, so a note learned in one counts in the other.
 - **Things to work on**: notes you often misread in sight-reading (3+ misses in your last 10 attempts, with the keys you
   tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).

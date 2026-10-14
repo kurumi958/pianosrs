@@ -1,5 +1,5 @@
 import { QUARTERS } from '../music/phrase';
-import type { RhythmPattern } from '../music/rhythm';
+import { meterName, type RhythmPattern } from '../music/rhythm';
 import { withKey } from './cards';
 import { type Card, CARD_BY_ID, type DeckDef, DECKS } from './deck';
 import type { CardState } from './scheduler';
@@ -113,8 +113,8 @@ export function learnedRhythms(known: Card[]): RhythmPattern[] {
  */
 export function phraseRhythms(learned: RhythmPattern[], bars: number, rnd: () => number = Math.random): RhythmPattern[] {
   if (!learned.length) return Array.from({ length: bars }, () => QUARTERS(4));
-  const meters = [...new Set(learned.map((p) => p.beats))];
-  const beats = meters[Math.floor(rnd() * meters.length)];
-  const options = learned.filter((p) => p.beats === beats);
+  const meters = [...new Set(learned.map((p) => meterName(p.meter)))];
+  const meter = meters[Math.floor(rnd() * meters.length)];
+  const options = learned.filter((p) => meterName(p.meter) === meter);
   return Array.from({ length: bars }, () => options[Math.floor(rnd() * options.length)]);
 }

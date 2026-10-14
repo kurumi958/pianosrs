@@ -1,5 +1,18 @@
 import { describe, expect, it } from 'vitest';
-import { accidentalInKey, KEY_SIGNATURES, midiName, parsePitch, toMidi, vexKey } from '../src/music/notes';
+import {
+  accidentalInKey,
+  KEY_SIGNATURES,
+  keyAccidental,
+  keyLabel,
+  midiName,
+  MINOR_KEYS,
+  parsePitch,
+  scaleAccidental,
+  signatureKey,
+  toMidi,
+  tonic,
+  vexKey,
+} from '../src/music/notes';
 import { withKey } from '../src/srs/cards';
 import { cardsInKey, courseProgress, knownCards, learnedKeys, phraseRhythms, studyCards } from '../src/srs/study';
 import type { CardState } from '../src/srs/scheduler';
@@ -20,7 +33,25 @@ import { dayKey, DEFAULT_SETTINGS, emptyData, nextDayStart, normalize, type Revi
 import { ALL_CARDS, CARD_BY_ID, cardLabel, DECK_GROUPS, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
-import { gradeTaps, matchTaps, onsets, parseRhythm, rhythmSpec } from '../src/music/rhythm';
+import {
+  barTicks,
+  gradeTaps,
+  hitWindow,
+  matchTaps,
+  meterName,
+  type NoteValue,
+  onsets,
+  parseMeter,
+  parseRhythm,
+  pulseBpm,
+  pulsesPerBar,
+  pulseTicks,
+  rhythmSpec,
+  shortestGap,
+  tickMs,
+  ticksOf,
+  TPQ,
+} from '../src/music/rhythm';
 import { TempoJudge } from '../src/music/tempo';
 import { tempoMarking } from '../src/components/Metronome';
 import {
@@ -32,6 +63,8 @@ import {
   type GrandStyle,
   phraseEvents,
   singleStaffPhrase,
+  tieAcrossBars,
+  voiceNotes,
 } from '../src/music/phrase';
 import { autoGrade, limitEasy } from '../src/srs/grading';
 import { studyStreak, todayPlan } from '../src/srs/today';
@@ -445,6 +478,8 @@ describe('phrases', () => {
   it('prints accidentals only when the bar needs them', () => {
     const P = parsePitch;
     expect(accidentalsToDraw([[P('F#4')], [P('F#4')], [P('F4')], [P('F5')]])).toEqual([['#'], [null], ['n'], [null]]);
+    // A note tied over the barline keeps its sharp silently; the next F♯ in the bar prints it again.
+    expect(accidentalsToDraw([[P('F#4')], [P('F#4')]], 'C', [true, false])).toEqual([[null], ['#']]);
   });
 });
 
@@ -452,31 +487,43 @@ describe('rhythmic phrases', () => {
   const treble = DECKS.find((d) => d.id === 'treble-staff')!.cards;
   const bass = DECKS.find((d) => d.id === 'bass-staff')!.cards;
   const both = DECKS.find((d) => d.id === 'grand-hands')!.cards.slice(0, 4);
-  const total = (v: { dur: number }[]) => v.reduce((a, n) => a + n.dur, 0);
-  const pats = (specs: string[], beats: number) => specs.map((sp) => parseRhythm(sp, beats));
+  const total = (v: NoteValue[]) => v.reduce((a, n) => a + ticksOf(n), 0);
+  const pats = (specs: string[], meter: number | string) => specs.map((sp) => parseRhythm(sp, meter));
 
   it('builds single-staff bars from rhythm patterns, with rests', () => {
     const p = singleStaffPhrase(weightedSampler(treble, {}, mulberry32(1)), 'treble', pats(['q q h', 'q qr h'], 4));
     expect(p.measures).toHaveLength(2);
     expect(p.measures[1].treble.map((n) => n.pitches.length)).toEqual([1, 0, 1]);
     const ev = phraseEvents(p);
-    expect(ev.map((e) => e.time)).toEqual([0, 1, 2, 4, 6]);
+    expect(ev.map((e) => e.time)).toEqual([0, 24, 48, 96, 144]);
   });
 
   it('fills both voices of every grand-staff bar, in any meter', () => {
-    const meters: [string[], number][] = [
-      [['q q q q', 'e e q h', 'q. e h'], 4],
-      [['h.', 'q q q', 'e e q q'], 3],
-      [['q q', 'h'], 2],
+    const meters: [string[], string][] = [
+      [['q q q q', 'e e q h', 'q. e h', 's s e q h', 'q~ e e q q', '3[e e e] q h'], '4/4'],
+      [['h.', 'q q q', 'e e q q', 'h~ e e'], '3/4'],
+      [['q q', 'h'], '2/4'],
+      [['q e q e', 'q. q.', 'e e e q.'], '6/8'],
+      [['q e', 'e e e'], '3/8'],
+      [['q. q. q.'], '9/8'],
+      [['q e q e q. q.'], '12/8'],
+      [['h h', 'q q h'], '2/2'],
     ];
-    for (const [specs, beats] of meters)
+    for (const [specs, meter] of meters)
       for (const style of ['mixed', 'melody', 'bass-melody', 'alternate', 'together'] as GrandStyle[]) {
-        const patterns = Array.from({ length: 12 }, (_, i) => parseRhythm(specs[i % specs.length], beats));
+        const patterns = Array.from({ length: 12 }, (_, i) => parseRhythm(specs[i % specs.length], meter));
         const p = grandStaffPhrase({ rh: treble, lh: bass, both }, {}, patterns, style, mulberry32(3));
-        expect(p.beats).toBe(beats);
+        expect(meterName(p.meter)).toBe(meter);
         for (const m of p.measures) {
-          expect(total(m.treble)).toBe(beats);
-          expect(total(m.bass)).toBe(beats);
+          expect(total(m.treble)).toBe(barTicks(p.meter));
+          expect(total(m.bass)).toBe(barTicks(p.meter));
+        }
+        // A tied-over note is the same note held on, in the same hand.
+        for (const clef of ['treble', 'bass'] as const) {
+          const notes = voiceNotes(p, clef);
+          notes.forEach((x, i) => {
+            if (x.tiedOver) expect(x.note.pitches).toEqual(notes[i - 1].note.pitches);
+          });
         }
       }
   });
@@ -485,7 +532,7 @@ describe('rhythmic phrases', () => {
     const p = grandStaffPhrase({ rh: treble, lh: bass, both: [] }, {}, [QUARTERS(4)], 'melody', mulberry32(1));
     const ev = phraseEvents(p);
     expect(ev).toHaveLength(4);
-    expect(ev[0].beat).toBe(0);
+    expect(ev[0].tick).toBe(0);
     expect(ev[0].cards).toHaveLength(2); // RH note + LH held note
     expect(ev[1].cards).toHaveLength(1);
   });
@@ -496,7 +543,7 @@ describe('rhythmic phrases', () => {
     for (const m of p.measures) {
       expect(m.treble.some((n) => n.pitches.length)).toBe(true);
       expect(m.bass.some((n) => n.pitches.length)).toBe(true);
-      expect(phraseEvents({ staff: 'grand', key: 'C', beats: 4, measures: [m] })).toHaveLength(4);
+      expect(phraseEvents({ staff: 'grand', key: 'C', meter: { num: 4, den: 4 }, measures: [m] })).toHaveLength(4);
     }
   });
 
@@ -504,20 +551,73 @@ describe('rhythmic phrases', () => {
     const learned = pats(['q q h', 'w'], 4).concat(pats(['h.', 'q q q'], 3));
     for (let seed = 0; seed < 10; seed++) {
       const r = phraseRhythms(learned, 4, mulberry32(seed));
-      expect(new Set(r.map((p) => p.beats)).size).toBe(1);
+      expect(new Set(r.map((p) => meterName(p.meter))).size).toBe(1);
     }
     expect(phraseRhythms([], 2)).toEqual([QUARTERS(4), QUARTERS(4)]);
+  });
+
+  it('plays a tied note once and holds it', () => {
+    const p = singleStaffPhrase(weightedSampler(treble, {}, mulberry32(2)), 'treble', pats(['q~ e e q q'], 4));
+    const [a, b] = p.measures[0].treble;
+    expect(b.pitches).toEqual(a.pitches);
+    expect(phraseEvents(p).map((e) => e.time)).toEqual([0, 36, 48, 72]); // the tied eighth (at 24) isn't played
+  });
+
+  it('ties notes over the barline', () => {
+    const base = singleStaffPhrase(weightedSampler(treble, {}, mulberry32(4)), 'treble', pats(['q q q q', 'h h', 'w'], 4));
+    const tied = tieAcrossBars(base, 1, mulberry32(1));
+    expect(tied.measures[0].treble[3].tie).toBe(true);
+    expect(tied.measures[1].treble[0].pitches).toEqual(tied.measures[0].treble[3].pitches);
+    expect(phraseEvents(tied)).toHaveLength(phraseEvents(base).length - 2);
+    expect(tied.measures[2].treble[0].pitches).toEqual(tied.measures[1].treble[1].pitches);
+    expect(base.measures[0].treble[3].tie).toBeUndefined(); // the original is untouched
   });
 });
 
 describe('rhythm', () => {
   it('parses patterns and rejects bars that do not add up', () => {
     const p = parseRhythm('q. e qr q', 4);
-    expect(p.notes.map((n) => n.dur)).toEqual([1.5, 0.5, 1, 1]);
-    expect(onsets(p)).toEqual([0, 1.5, 3]);
+    expect(p.notes.map(ticksOf)).toEqual([36, 12, 24, 24]);
+    expect(onsets(p)).toEqual([0, 36, 72]);
     expect(rhythmSpec(p)).toBe('q. e qr q');
     expect(() => parseRhythm('q q', 4)).toThrow();
     expect(() => parseRhythm('x', 1)).toThrow();
+  });
+  it('reads sixteenths, triplets, ties and compound meters', () => {
+    const s = parseRhythm('e. s s s e q q', 4);
+    expect(s.notes.map(ticksOf)).toEqual([18, 6, 6, 6, 12, 24, 24]);
+    const t = parseRhythm('3[e e e] q 3[q q q]', 4);
+    expect(t.notes.map(ticksOf)).toEqual([8, 8, 8, 24, 16, 16, 16]);
+    expect(t.notes.map((n) => n.triplet)).toEqual([0, 0, 0, undefined, 1, 1, 1]);
+    expect(rhythmSpec(t)).toBe('3[e e e] q 3[q q q]');
+    const tie = parseRhythm('q~ e e q q', 4);
+    expect(onsets(tie)).toEqual([0, 36, 48, 72]);
+    expect(rhythmSpec(tie)).toBe('q~ e e q q');
+    const six = parseRhythm('q e q e', '6/8');
+    expect(onsets(six)).toEqual([0, 24, 36, 60]);
+    expect(() => parseRhythm('q q', '6/8')).toThrow();
+  });
+  it('rejects broken triplets and ties', () => {
+    expect(() => parseRhythm('3[e e] q q q e', 4)).toThrow();
+    expect(() => parseRhythm('q q q~ qr', 4)).toThrow();
+    expect(() => parseRhythm('q q q q~', 4)).toThrow();
+    expect(() => parseRhythm('3[e e e q q q', 4)).toThrow();
+  });
+  it('counts the beat of each meter', () => {
+    expect([pulseTicks(parseMeter('4/4')), pulsesPerBar(parseMeter('4/4'))]).toEqual([24, 4]);
+    expect([pulseTicks(parseMeter('6/8')), pulsesPerBar(parseMeter('6/8'))]).toEqual([36, 2]);
+    expect([pulseTicks(parseMeter('12/8')), pulsesPerBar(parseMeter('12/8'))]).toEqual([36, 4]);
+    expect([pulseTicks(parseMeter('3/8')), pulsesPerBar(parseMeter('3/8'))]).toEqual([12, 3]);
+    expect([pulseTicks(parseMeter('2/2')), pulsesPerBar(parseMeter('2/2'))]).toEqual([48, 2]);
+    // Tempo is in quarters: at 60, a quarter lasts a second whatever the meter, and 6/8 clicks at 40.
+    expect(tickMs(60) * TPQ).toBe(1000);
+    expect(pulseBpm(parseMeter('6/8'), 60)).toBe(40);
+  });
+  it('keeps the hit window under half the gap between fast notes', () => {
+    expect(hitWindow(750)).toBe(180);
+    expect(hitWindow(750, 187.5)).toBeCloseTo(84.4, 1);
+    expect(hitWindow(750, 60)).toBe(50);
+    expect(shortestGap([0, 300, 100, 100])).toBe(100);
   });
   it('matches taps to onsets and grades timing', () => {
     const beat = 1000;
@@ -537,6 +637,10 @@ describe('rhythm', () => {
     expect(c.prompt).toBe('rhythm');
     expect(cardLabel(c)).toBe('4/4 rhythm (q. e h)');
     expect(deckCards('rhythm-eighths').length).toBeGreaterThan(5);
+    for (const id of ['rhythm-sixteenths', 'rhythm-dotted-eighths', 'rhythm-ties', 'rhythm-triplets', 'rhythm-compound', 'rhythm-cut'])
+      expect(deckCards(id).length).toBeGreaterThan(4);
+    expect(cardLabel(CARD_BY_ID.get('rhythm:6/8:q e q e')!)).toBe('6/8 rhythm (q e q e)');
+    expect(CARD_BY_ID.has('rhythm:4/4:3[e e e] q q q')).toBe(true);
   });
 });
 
@@ -582,6 +686,41 @@ describe('playing in time', () => {
   });
 });
 
+describe('minor keys', () => {
+  it('raises the 7th in harmonic minor', () => {
+    expect(scaleAccidental('Am', 'G')).toBe('#');
+    expect(scaleAccidental('Am', 'F')).toBe('');
+    expect(scaleAccidental('Cm', 'B')).toBe(''); // B♭ in the signature, raised to B♮
+    expect(scaleAccidental('F#m', 'E')).toBe('#');
+    expect(scaleAccidental('G#m', 'F')).toBeNull(); // would need F double sharp
+    expect(scaleAccidental('G', 'F')).toBe('#');
+    expect(signatureKey('Bm')).toBe('D');
+    expect(keyLabel('Bbm')).toBe('B♭ minor');
+    expect(keyLabel('F#')).toBe('F♯ major');
+    expect(tonic('C#m', 3)).toEqual(parsePitch('C#3'));
+  });
+  it('moves cards into a minor key, with the raised 7th', () => {
+    const g = withKey(CARD_BY_ID.get('grand:G4|')!, 'Am')!;
+    expect(g.id).toBe('grand[Am]:G#4|');
+    expect(cardLabel(g)).toBe('G#4 (RH) in A minor');
+    expect(withKey(g, 'C')!.id).toBe('grand:G4|');
+    expect(withKey(CARD_BY_ID.get('treble:F4')!, 'G#m')).toBeNull();
+    expect(accidentalInKey(parsePitch('G#4'), 'Am')).toBe('#');
+  });
+  it('has decks for minor keys', () => {
+    const sigs = deckCards('minor-key-signatures');
+    expect(sigs).toHaveLength(15);
+    expect(cardLabel(sigs[0])).toBe('A minor');
+    expect(sigs[0].notes).toEqual([parsePitch('A4')]);
+    const lt = deckCards('minor-notes');
+    expect(lt.length).toBeGreaterThan(20);
+    for (const c of lt) {
+      const p = c.notes[0];
+      expect(scaleAccidental(c.key, p.letter)).not.toBe(keyAccidental(c.key, p.letter));
+    }
+  });
+});
+
 describe('key signatures', () => {
   it('only prints accidentals the key does not imply', () => {
     expect(accidentalInKey(parsePitch('F#4'), 'G')).toBeNull();
@@ -589,8 +728,11 @@ describe('key signatures', () => {
     expect(accidentalInKey(parsePitch('F#4'), 'C')).toBe('#');
     expect(accidentalInKey(parsePitch('C4'), 'G')).toBeNull();
   });
-  it('knows all 15 major key signatures', () => {
-    expect(Object.keys(KEY_SIGNATURES)).toHaveLength(15);
+  it('knows all 15 major and 15 minor key signatures', () => {
+    expect(Object.keys(KEY_SIGNATURES)).toHaveLength(30);
+    expect(MINOR_KEYS.map((k) => k.key)).toEqual(['Am', 'Em', 'Dm', 'Bm', 'Gm', 'F#m', 'Cm', 'C#m', 'Fm', 'G#m', 'Bbm', 'D#m', 'Ebm', 'A#m', 'Abm']);
+    expect(KEY_SIGNATURES['F#m']).toEqual(KEY_SIGNATURES.A);
+    expect(KEY_SIGNATURES.Am).toEqual({});
     expect(KEY_SIGNATURES.Eb).toEqual({ B: 'b', E: 'b', A: 'b' });
     expect(KEY_SIGNATURES.E).toEqual({ F: '#', C: '#', G: '#', D: '#' });
     expect(KEY_SIGNATURES['C#']).toEqual({ F: '#', C: '#', G: '#', D: '#', A: '#', E: '#', B: '#' });

@@ -1,8 +1,8 @@
-import { Accidental, Beam, Dot, Formatter, Renderer, Stave, StaveConnector, StaveNote, Voice } from 'vexflow/bravura';
+import { Accidental, Beam, Dot, Formatter, Renderer, Stave, StaveConnector, StaveNote, StaveTie, Tuplet, Voice } from 'vexflow/bravura';
 import type { Card } from '../srs/deck';
-import { accidentalInKey, type Clef, type Pitch, sortPitches, vexKey } from './notes';
-import { accidentalsToDraw, eventKey, type DrawnAccidental, type Phrase, type PhraseEvent } from './phrase';
-import type { Dur, RhythmPattern } from './rhythm';
+import { accidentalInKey, type Clef, hasSignature, type Pitch, sortPitches, vexKey } from './notes';
+import { accidentalsToDraw, eventKey, type DrawnAccidental, type Phrase, type PhraseEvent, type PhraseNote, voiceNotes } from './phrase';
+import { type Base, type Meter, meterName, type NoteValue, type RhythmPattern, ticksOf as ticksOfNote } from './rhythm';
 
 /** Score colours: warm ink, burgundy for the note to play, sage for right, brick for wrong. */
 export const COLORS = {
@@ -33,23 +33,17 @@ function prepare(el: HTMLElement, width: number, height: number) {
 
 type Ctx = ReturnType<typeof prepare>;
 
-const DURATION: Record<Dur, { duration: string; dots: number }> = {
-  0.5: { duration: '8', dots: 0 },
-  1: { duration: 'q', dots: 0 },
-  1.5: { duration: 'q', dots: 1 },
-  2: { duration: 'h', dots: 0 },
-  3: { duration: 'h', dots: 1 },
-  4: { duration: 'w', dots: 0 },
-};
+const DURATION: Record<Base, string> = { w: 'w', h: 'h', q: 'q', e: '8', s: '16' };
 // Where rests sit: the whole rest hangs from the 4th line, others are centred.
 const REST_KEY: Record<Clef, string> = { treble: 'b/4', bass: 'd/3' };
 const WHOLE_REST_KEY: Record<Clef, string> = { treble: 'd/5', bass: 'f/3' };
 
-function makeNote(pitches: Pitch[], clef: Clef, dur: Dur, accs: DrawnAccidental[], color: string, stemUp = false): StaveNote {
-  const { duration, dots } = DURATION[dur];
+function makeNote(pitches: Pitch[], clef: Clef, val: NoteValue, accs: DrawnAccidental[], color: string, stemUp = false): StaveNote {
+  const duration = DURATION[val.base];
+  const dots = val.dots;
   const note = pitches.length
     ? new StaveNote({ clef, keys: sortPitches(pitches).map(vexKey), duration, dots, auto_stem: !stemUp, stem_direction: stemUp ? 1 : undefined })
-    : new StaveNote({ clef, keys: [dur === 4 ? WHOLE_REST_KEY[clef] : REST_KEY[clef]], duration: `${duration}r`, dots });
+    : new StaveNote({ clef, keys: [val.base === 'w' ? WHOLE_REST_KEY[clef] : REST_KEY[clef]], duration: `${duration}r`, dots });
   if (dots) Dot.buildAndAttach([note], { all: true });
   accs.forEach((a, i) => {
     if (a) note.addModifier(new Accidental(a), i);
@@ -58,36 +52,64 @@ function makeNote(pitches: Pitch[], clef: Clef, dur: Dur, accs: DrawnAccidental[
   return note;
 }
 
+/** Triplet brackets for a voice: notes sharing a triplet number. Made before formatting, as they change the notes' lengths. */
+function makeTuplets(values: NoteValue[], notes: StaveNote[]): Tuplet[] {
+  const groups = new Map<number, StaveNote[]>();
+  values.forEach((v, i) => v.triplet !== undefined && groups.set(v.triplet, [...(groups.get(v.triplet) ?? []), notes[i]]));
+  return [...groups.values()].map((ns) => new Tuplet(ns, { num_notes: 3, notes_occupied: 2, location: 1 }));
+}
+
 function connect(ctx: Ctx, top: Stave, bottom: Stave, type: 'brace' | 'singleLeft' | 'singleRight' | 'boldDoubleRight') {
   new StaveConnector(top, bottom).setType(type).setContext(ctx).draw();
 }
 
-/** Draw voices on their staves, formatted together so simultaneous notes line up. Eighth notes are beamed. */
-function drawVoices(ctx: Ctx, parts: { stave: Stave; notes: StaveNote[] }[], beats = 4, stemUp = false) {
-  const beams = parts.flatMap((p) => Beam.generateBeams(p.notes, stemUp ? { stem_direction: 1 } : {}));
-  const voices = parts.map((p) => new Voice({ num_beats: beats, beat_value: 4 }).setStrict(false).addTickables(p.notes));
+interface Part {
+  stave: Stave;
+  notes: StaveNote[];
+  tuplets?: Tuplet[];
+}
+
+/** Draw voices on their staves, formatted together so simultaneous notes line up. Short notes are beamed by the beat. */
+function drawVoices(ctx: Ctx, parts: Part[], meter: Meter = { num: 4, den: 4 }, stemUp = false) {
+  const groups = Beam.getDefaultBeamGroups(meterName(meter));
+  const beams = parts.flatMap((p) => Beam.generateBeams(p.notes, { groups, ...(stemUp ? { stem_direction: 1 } : {}) }));
+  const voices = parts.map((p) => new Voice({ num_beats: meter.num, beat_value: meter.den }).setStrict(false).addTickables(p.notes));
   const f = new Formatter();
   voices.forEach((v) => f.joinVoices([v]));
   f.formatToStave(voices, parts[0].stave);
   voices.forEach((v, i) => v.draw(ctx, parts[i].stave));
   beams.forEach((b) => b.setContext(ctx).draw());
+  parts.forEach((p) => p.tuplets?.forEach((t) => t.setContext(ctx).draw()));
+}
+
+/** A tie between two notes; either end may be missing when the tie crosses a line break. */
+function drawTie(ctx: Ctx, from: StaveNote | null, to: StaveNote | null, count: number) {
+  const indices = Array.from({ length: count }, (_, i) => i);
+  new StaveTie({ first_note: from, last_note: to, first_indices: indices, last_indices: indices }).setContext(ctx).draw();
 }
 
 /** A rhythm on a single line (rhythm cards). `colors` optionally colours each sounding note, e.g. to show which taps landed. */
 export function renderRhythm(el: HTMLElement, pattern: RhythmPattern, colors: string[] = []): void {
-  const width = 260;
+  const width = Math.max(260, 90 + pattern.notes.length * 30);
   const ctx = prepare(el, width, 130);
-  const stave = new Stave(10, 25, width - 20).addTimeSignature(`${pattern.beats}/4`);
+  const stave = new Stave(10, 25, width - 20).addTimeSignature(meterName(pattern.meter));
   stave.setConfigForLines([0, 1, 2, 3, 4].map((i) => ({ visible: i === 2 })));
   stave.setEndBarType(3);
   stave.setContext(ctx).draw();
   let k = 0;
-  const notes = pattern.notes.map((n) =>
-    makeNote(n.rest ? [] : [{ letter: 'B', acc: '', octave: 4 }], 'treble', n.dur, [], n.rest ? COLORS.ink : (colors[k++] ?? COLORS.ink), true),
-  );
-  drawVoices(ctx, [{ stave, notes }], pattern.beats, true);
+  const B4: Pitch = { letter: 'B', acc: '', octave: 4 };
+  let color = COLORS.ink;
+  const notes = pattern.notes.map((n, i) => {
+    // A tied-over note takes the colour of the note it continues.
+    if (!n.rest && !pattern.notes[i - 1]?.tie) color = colors[k++] ?? COLORS.ink;
+    return makeNote(n.rest ? [] : [B4], 'treble', n, [], n.rest ? COLORS.ink : color, true);
+  });
+  const tuplets = makeTuplets(pattern.notes, notes);
+  drawVoices(ctx, [{ stave, notes, tuplets }], pattern.meter, true);
+  pattern.notes.forEach((n, i) => n.tie && drawTie(ctx, notes[i], notes[i + 1], 1));
 }
 
+const WHOLE: NoteValue = { base: 'w', dots: 0 };
 const accsInKey = (ps: Pitch[], key: string): DrawnAccidental[] => sortPitches(ps).map((p) => accidentalInKey(p, key));
 
 /** One flash card: a whole note or chord on one staff, or on both staves of a grand staff. */
@@ -95,13 +117,13 @@ export function renderCard(el: HTMLElement, card: Card, color = COLORS.ink): voi
   const width = 220;
   const staveFor = (x: number, y: number, clef: Clef) => {
     const st = new Stave(x, y, width - x - 10).addClef(clef);
-    if (card.key !== 'C') st.addKeySignature(card.key);
+    if (hasSignature(card.key)) st.addKeySignature(card.key);
     return st;
   };
   if (card.staff !== 'grand') {
     const ctx = prepare(el, width, 190);
     const stave = staveFor(10, 45, card.staff).setContext(ctx).draw();
-    drawVoices(ctx, [{ stave, notes: [makeNote(card.notes, card.staff, 4, accsInKey(card.notes, card.key), color)] }]);
+    drawVoices(ctx, [{ stave, notes: [makeNote(card.notes, card.staff, WHOLE, accsInKey(card.notes, card.key), color)] }]);
     return;
   }
   const ctx = prepare(el, width, 290);
@@ -112,21 +134,26 @@ export function renderCard(el: HTMLElement, card: Card, color = COLORS.ink): voi
   connect(ctx, treble, bass, 'singleRight');
   if (card.prompt === 'key') return; // just the key signature
   drawVoices(ctx, [
-    { stave: treble, notes: [makeNote(card.hands.treble, 'treble', 4, accsInKey(card.hands.treble, card.key), color)] },
-    { stave: bass, notes: [makeNote(card.hands.bass, 'bass', 4, accsInKey(card.hands.bass, card.key), color)] },
+    { stave: treble, notes: [makeNote(card.hands.treble, 'treble', WHOLE, accsInKey(card.hands.treble, card.key), color)] },
+    { stave: bass, notes: [makeNote(card.hands.bass, 'bass', WHOLE, accsInKey(card.hands.bass, card.key), color)] },
   ]);
 }
 
 export type PhraseMark = 'pending' | 'current' | 'ok' | 'miss';
 
+/** Width of every bar in a phrase: wide enough for its busiest bar. */
+function measureWidth(phrase: Phrase): number {
+  const busiest = Math.max(1, ...phrase.measures.flatMap((m) => [m.treble.length, m.bass.length]));
+  return Math.max(230, 70 + busiest * 27);
+}
+
 /** Size of a rendered phrase, in SVG units, when laid out `perLine` bars to a line. */
 export function phraseSize(phrase: Phrase, perLine: number): { width: number; height: number; lines: number } {
   const grand = phrase.staff === 'grand';
   const lines = Math.ceil(phrase.measures.length / perLine);
-  return { width: (grand ? 25 : 10) + 10 + perLine * MEASURE_W, height: lines * lineHeightOf(grand) + 20, lines };
+  return { width: (grand ? 25 : 10) + 10 + perLine * measureWidth(phrase), height: lines * lineHeightOf(grand) + 20, lines };
 }
 
-const MEASURE_W = 230;
 /** Single-staff lines get extra space between them, so two stacked lines don't read as a grand staff. */
 const lineHeightOf = (grand: boolean) => (grand ? 240 : 160);
 
@@ -134,26 +161,30 @@ const lineHeightOf = (grand: boolean) => (grand ? 240 : 160);
 export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEvent[], marks: PhraseMark[], perLine: number): void {
   const grand = phrase.staff === 'grand';
   const clefs: Clef[] = grand ? ['treble', 'bass'] : [phrase.staff as Clef];
-  const eventIndex = new Map(events.map((e, i) => [eventKey(e.measure, e.beat), i]));
+  const eventIndex = new Map(events.map((e, i) => [eventKey(e.measure, e.tick), i]));
   const left = grand ? 25 : 10;
   const n = phrase.measures.length;
   const staffGap = 110;
   const lineHeight = lineHeightOf(grand);
   const { width, height } = phraseSize(phrase, perLine);
   const ctx = prepare(el, width, height);
-  const measureWidth = MEASURE_W;
+  const mw = measureWidth(phrase);
+  // Which notes are held over by ties, per staff, by measure and position.
+  const tiedOver = new Map(clefs.map((clef) => [clef, new Set(voiceNotes(phrase, clef).filter((x) => x.tiedOver).map((x) => `${x.measure}:${x.index}`))]));
+  // The note a tie starts from, waiting for the note it ties to.
+  const pending = new Map<Clef, { note: StaveNote; line: number; count: number }>();
 
   phrase.measures.forEach((m, mi) => {
     const line = Math.floor(mi / perLine);
     const col = mi % perLine;
-    const x = left + col * measureWidth;
+    const x = left + col * mw;
     const staves = clefs.map((clef, si) => {
-      const st = new Stave(x, 20 + line * lineHeight + si * staffGap, measureWidth);
+      const st = new Stave(x, 20 + line * lineHeight + si * staffGap, mw);
       if (col === 0) {
         st.addClef(clef);
-        if (phrase.key !== 'C') st.addKeySignature(phrase.key);
+        if (hasSignature(phrase.key)) st.addKeySignature(phrase.key);
       }
-      if (mi === 0) st.addTimeSignature(`${phrase.beats}/4`);
+      if (mi === 0) st.addTimeSignature(meterName(phrase.meter));
       if (mi === n - 1) st.setEndBarType(3); // final double bar
       return st.setContext(ctx).draw();
     });
@@ -171,22 +202,48 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
       connect(ctx, staves[0], staves[1], mi === n - 1 ? 'boldDoubleRight' : 'singleRight');
     }
 
+    const drawn: { clef: Clef; voice: PhraseNote[]; notes: StaveNote[] }[] = [];
     drawVoices(
       ctx,
       clefs.map((clef, si) => {
         const voice = m[clef];
-        const accs = accidentalsToDraw(voice.map((v) => sortPitches(v.pitches)), phrase.key);
-        let beat = 0;
+        const held = voice.map((_, j) => tiedOver.get(clef)!.has(`${mi}:${j}`));
+        const accs = accidentalsToDraw(
+          voice.map((v) => sortPitches(v.pitches)),
+          phrase.key,
+          held,
+        );
+        let tick = 0;
+        let color = COLORS.ink;
         const notes = voice.map((v, j) => {
-          const idx = eventIndex.get(eventKey(mi, beat));
-          beat += v.dur;
-          const mark = idx === undefined ? 'pending' : (marks[idx] ?? 'pending');
-          const color = mark === 'current' ? COLORS.current : mark === 'ok' ? COLORS.ok : mark === 'miss' ? COLORS.miss : COLORS.ink;
-          return makeNote(v.pitches, clef, v.dur, accs[j], color);
+          const idx = eventIndex.get(eventKey(mi, tick));
+          tick += ticksOfNote(v);
+          // A held-over note keeps the colour of the note it continues.
+          if (!held[j]) {
+            const mark = idx === undefined ? 'pending' : (marks[idx] ?? 'pending');
+            color = mark === 'current' ? COLORS.current : mark === 'ok' ? COLORS.ok : mark === 'miss' ? COLORS.miss : COLORS.ink;
+          }
+          return makeNote(v.pitches, clef, v, accs[j], color);
         });
-        return { stave: staves[si], notes };
+        drawn.push({ clef, voice, notes });
+        return { stave: staves[si], notes, tuplets: makeTuplets(voice, notes) };
       }),
-      phrase.beats,
+      phrase.meter,
     );
+    for (const { clef, voice, notes } of drawn) {
+      voice.forEach((v, j) => {
+        const from = pending.get(clef);
+        if (from && v.pitches.length) {
+          if (from.line === line) drawTie(ctx, from.note, notes[j], from.count);
+          else {
+            // Across a line break: the tie leaves the end of one line and arrives at the start of the next.
+            drawTie(ctx, from.note, null, from.count);
+            drawTie(ctx, null, notes[j], from.count);
+          }
+          pending.delete(clef);
+        }
+        if (v.tie && v.pitches.length) pending.set(clef, { note: notes[j], line, count: v.pitches.length });
+      });
+    }
   });
 }

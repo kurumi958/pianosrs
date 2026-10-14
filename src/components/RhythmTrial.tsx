@@ -1,7 +1,21 @@
 import { useEffect, useRef, useState } from 'react';
 import { barClicks, outputLatencyMs, scheduleClicks } from '../midi/metronome';
 import { COLORS, renderRhythm } from '../music/notation';
-import { gradeTaps, hitWindow, matchTaps, onsets, type RhythmPattern, type TapResult } from '../music/rhythm';
+import {
+  barTicks,
+  gradeTaps,
+  hitWindow,
+  matchTaps,
+  onsets,
+  pulseBpm,
+  pulsesPerBar,
+  pulseTicks,
+  type RhythmPattern,
+  shortestGap,
+  type TapResult,
+  tickMs,
+  TPQ,
+} from '../music/rhythm';
 import type { Grade } from '../srs/scheduler';
 import { useNoteEvents } from '../hooks';
 import { Metronome } from './Metronome';
@@ -27,8 +41,13 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
   const taps = useRef<number[]>([]);
   const cancel = useRef<() => void>(() => {});
   const staff = useRef<HTMLDivElement>(null);
-  const beatMs = 60_000 / bpm;
-  const window_ = hitWindow(beatMs);
+  // Tempo is in quarter notes; the metronome clicks the bar's pulse (dotted quarters in 6/8).
+  const msPerTick = tickMs(bpm);
+  const beatMs = TPQ * msPerTick;
+  const pulseMs = pulseTicks(pattern.meter) * msPerTick;
+  const pulses = pulsesPerBar(pattern.meter);
+  const barMs = barTicks(pattern.meter) * msPerTick;
+  const window_ = hitWindow(beatMs, shortestGap(onsets(pattern)) * msPerTick);
 
   // Reset when the card changes.
   useEffect(() => {
@@ -46,18 +65,18 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
   // Count beats for the on-screen counter, and finish once the bar (plus the hit window) is over.
   useEffect(() => {
     if (stage.kind !== 'running') return;
-    const barStart = stage.start + pattern.beats * beatMs;
-    const end = barStart + pattern.beats * beatMs + window_;
+    const barStart = stage.start + barMs;
+    const end = barStart + barMs + window_;
     let raf = 0;
     const tick = () => {
       const now = performance.now();
-      setBeat(Math.floor((now - stage.start) / beatMs));
+      setBeat(Math.floor((now - stage.start) / pulseMs));
       if (now < end) {
         raf = requestAnimationFrame(tick);
         return;
       }
       const shift = outputLatencyMs() + latencyMs;
-      const expected = onsets(pattern).map((b) => barStart + b * beatMs + shift);
+      const expected = onsets(pattern).map((t) => barStart + t * msPerTick + shift);
       const result = matchTaps(expected, taps.current, window_);
       setStage({ kind: 'done', result });
       onDone(gradeTaps(result, beatMs), result, beatMs);
@@ -77,18 +96,18 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
     const start = performance.now() + 300;
     taps.current = [];
     cancel.current();
-    cancel.current = scheduleClicks(barClicks(start, beatMs, pattern.beats, 2));
+    cancel.current = scheduleClicks(barClicks(start, pulseMs, pulses, 2));
     setStage({ kind: 'running', start });
   });
 
-  const countIn = stage.kind === 'running' && beat < pattern.beats;
+  const countIn = stage.kind === 'running' && beat < pulses;
   return (
     <div className="rhythm-trial">
       <div className="rhythm-main">
       <div className="rhythm-staff" ref={staff} aria-label="Rhythm to tap" />
       <div className="beats" aria-live="polite">
-        {Array.from({ length: pattern.beats }, (_, i) => {
-          const active = stage.kind === 'running' && beat >= 0 && beat % pattern.beats === i;
+        {Array.from({ length: pulses }, (_, i) => {
+          const active = stage.kind === 'running' && beat >= 0 && beat % pulses === i;
           return (
             <span key={i} className={`beat ${active ? (countIn ? 'count' : 'play') : ''}`}>
               {i + 1}
@@ -102,7 +121,7 @@ export function RhythmTrial({ pattern, bpm, latencyMs, onDone }: Props) {
         {stage.kind === 'done' && 'Press any key to try it again for practice.'}
       </p>
       </div>
-      <Metronome bpm={bpm} start={stage.kind === 'running' ? stage.start : null} />
+      <Metronome bpm={bpm} pulseBpm={pulseBpm(pattern.meter, bpm)} start={stage.kind === 'running' ? stage.start : null} />
     </div>
   );
 }

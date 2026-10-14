@@ -1,5 +1,5 @@
-import { type Clef, keyAccidental, type Pitch, pitchName, sortPitches, tonic } from '../music/notes';
-import { parseRhythm, type RhythmPattern, rhythmSpec } from '../music/rhythm';
+import { type Clef, keyLabel, type Pitch, pitchName, scaleAccidental, sortPitches, tonic } from '../music/notes';
+import { type Meter, meterName, parseRhythm, type RhythmPattern, rhythmSpec } from '../music/rhythm';
 
 /** Which staff a card is drawn on. Grand-staff cards use both hands. */
 export type StaffKind = Clef | 'grand';
@@ -46,27 +46,31 @@ export function makeGrandCard(treble: Pitch[], bass: Pitch[], key = 'C'): Card {
 }
 
 /** Deterministic PRNG so the introduction order is stable between sessions. */
-/** "Which major key is this?" — shows a key signature on the grand staff; play the tonic in any octave. */
+/**
+ * "Which key is this?" — shows a key signature on the grand staff; play the tonic in any octave. A major and a
+ * minor key share each signature, so the card asks for one or the other: "keysig:D" or "keysig:Bm".
+ */
 export function makeKeyCard(key: string): Card {
   return { id: `keysig:${key}`, staff: 'grand', key, notes: [tonic(key, 4)], hands: { treble: [], bass: [] }, prompt: 'key', anyOctave: true };
 }
 
-/** A one-bar rhythm to tap on any key, e.g. makeRhythmCard("q q h", 4). */
-export function makeRhythmCard(spec: string, beats: number): Card {
-  const rhythm = parseRhythm(spec, beats);
-  return { id: `rhythm:${beats}/4:${rhythmSpec(rhythm)}`, staff: 'treble', key: 'C', notes: [], hands: { treble: [], bass: [] }, prompt: 'rhythm', rhythm };
+/** A one-bar rhythm to tap on any key, e.g. makeRhythmCard("q q h", 4) or makeRhythmCard("q e q e", "6/8"). */
+export function makeRhythmCard(spec: string, meter: Meter | number | string): Card {
+  const rhythm = parseRhythm(spec, meter);
+  return { id: `rhythm:${meterName(rhythm.meter)}:${rhythmSpec(rhythm)}`, staff: 'treble', key: 'C', notes: [], hands: { treble: [], bass: [] }, prompt: 'rhythm', rhythm };
 }
 
 /**
- * The same card read in another key signature: each note keeps its letter and takes the key's accidental.
- * Returns null for cards with chromatic notes (accidentals outside their own key), which don't carry over.
+ * The same card read in another key: each note keeps its letter and takes the key's accidental (in a minor key,
+ * harmonic minor's raised 7th). Returns null for cards with chromatic notes (accidentals outside their own key's
+ * scale), which don't carry over, and for keys whose scale needs a double sharp.
  */
 export function withKey(card: Card, key: string): Card | null {
   if (card.prompt) return null;
   if (card.key === key) return card;
-  const diatonic = (ps: Pitch[]) => ps.every((p) => p.acc === keyAccidental(card.key, p.letter));
-  if (!diatonic(card.notes)) return null;
-  const move = (ps: Pitch[]) => ps.map((p) => ({ ...p, acc: keyAccidental(key, p.letter) }));
+  const diatonic = (ps: Pitch[]) => ps.every((p) => p.acc === scaleAccidental(card.key, p.letter));
+  if (!diatonic(card.notes) || card.notes.some((p) => scaleAccidental(key, p.letter) === null)) return null;
+  const move = (ps: Pitch[]) => ps.map((p) => ({ ...p, acc: scaleAccidental(key, p.letter)! }));
   return card.staff === 'grand'
     ? makeGrandCard(move(card.hands.treble), move(card.hands.bass), key)
     : makeCard(card.staff, move(card.notes), key);
@@ -108,9 +112,9 @@ export function uniqueById(cards: Card[]): Card[] {
 }
 
 export function cardLabel(card: Card): string {
-  if (card.prompt === 'key') return `${card.key.replace('b', '♭').replace('#', '♯')} major`;
-  if (card.rhythm) return `${card.rhythm.beats}/4 rhythm (${rhythmSpec(card.rhythm)})`;
-  const keyNote = card.key === 'C' ? '' : ` in ${card.key} major`;
+  if (card.prompt === 'key') return keyLabel(card.key);
+  if (card.rhythm) return `${meterName(card.rhythm.meter)} rhythm (${rhythmSpec(card.rhythm)})`;
+  const keyNote = card.key === 'C' ? '' : ` in ${keyLabel(card.key)}`;
   return baseLabel(card) + keyNote;
 }
 

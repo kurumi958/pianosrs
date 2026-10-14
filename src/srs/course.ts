@@ -21,8 +21,8 @@ function cards(spec: string, key = 'C'): Card[] {
 /** Rhythm cards: "4: q q h, w; 3: h." */
 function rhythms(spec: string): Card[] {
   return spec.split(';').flatMap((group) => {
-    const [beats, patterns] = group.split(':');
-    return patterns.split(',').map((p) => makeRhythmCard(p, Number(beats)));
+    const [meter, patterns] = group.split(':').map((x) => x.trim());
+    return patterns.split(',').map((p) => makeRhythmCard(p, meter.includes('/') ? meter : Number(meter)));
   });
 }
 

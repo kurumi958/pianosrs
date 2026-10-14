@@ -6,6 +6,9 @@ import {
   fromDiatonicIndex,
   keyAccidental,
   MAJOR_KEYS,
+  MINOR_KEYS,
+  scaleAccidental,
+  SIGHT_MINOR_KEYS,
   naturalRange,
   parsePitch,
   toMidi,
@@ -42,10 +45,35 @@ export const DECK_GROUPS: { name: string; decks: string[] }[] = [
   { name: 'Grand staff', decks: ['test-grand', 'grand-staff', 'grand-hands', 'grand-chords'] },
   {
     name: 'Sharps, flats & key signatures',
-    decks: ['test-keys', 'treble-accidentals', 'bass-accidentals', 'key-signatures', 'key-notes-sharp', 'key-notes-flat'],
+    decks: [
+      'test-keys',
+      'treble-accidentals',
+      'bass-accidentals',
+      'key-signatures',
+      'key-notes-sharp',
+      'key-notes-flat',
+      'minor-key-signatures',
+      'minor-notes',
+    ],
   },
   { name: 'Intervals & chords', decks: ['test-chords', 'treble-intervals', 'bass-intervals', 'treble-triads', 'bass-triads'] },
-  { name: 'Rhythm', decks: ['test-rhythm', 'rhythm-basics', 'rhythm-three', 'rhythm-rests', 'rhythm-eighths', 'rhythm-dotted'] },
+  {
+    name: 'Rhythm',
+    decks: [
+      'test-rhythm',
+      'rhythm-basics',
+      'rhythm-three',
+      'rhythm-rests',
+      'rhythm-eighths',
+      'rhythm-dotted',
+      'rhythm-sixteenths',
+      'rhythm-dotted-eighths',
+      'rhythm-ties',
+      'rhythm-triplets',
+      'rhythm-compound',
+      'rhythm-cut',
+    ],
+  },
 ];
 
 /** Landmark notes first (they anchor everything else), the rest in a stable shuffled order. */
@@ -133,11 +161,25 @@ function notesInKeys(keys: string[], seed: number): Card[] {
   });
 }
 
-/** Rhythm cards from "beats: pattern, pattern; beats: ..." e.g. "4: q q h, w; 3: h." */
+/**
+ * Minor keys' raised 7th (G♯ in A minor): the one note harmonic minor adds outside the key signature, read on the
+ * grand staff at each place it falls on the treble staff (E4–F5) and the bass staff (G2–A3).
+ */
+function leadingTones(keys: string[], seed: number): Card[] {
+  return keys.flatMap((key, k) => {
+    const raised = (p: Pitch) => scaleAccidental(key, p.letter) !== keyAccidental(key, p.letter);
+    const inKey = (p: Pitch): Pitch => ({ ...p, acc: scaleAccidental(key, p.letter)! });
+    const rh = naturalRange('E4', 'F5').filter(raised).map((p) => makeGrandCard([inKey(p)], [], key));
+    const lh = naturalRange('G2', 'A3').filter(raised).map((p) => makeGrandCard([], [inKey(p)], key));
+    return shuffle([...rh, ...lh], seed + k);
+  });
+}
+
+/** Rhythm cards from "meter: pattern, pattern; meter: ..." e.g. "4: q q h, w; 3: h.; 6/8: q. q." (a bare number is x/4). */
 function rhythms(spec: string): Card[] {
   return spec.split(';').flatMap((group) => {
-    const [beats, patterns] = group.split(':');
-    return patterns.split(',').map((p) => makeRhythmCard(p, Number(beats)));
+    const [meter, patterns] = group.split(':').map((x) => x.trim());
+    return patterns.split(',').map((p) => makeRhythmCard(p, meter.includes('/') ? meter : Number(meter)));
   });
 }
 
@@ -297,6 +339,71 @@ export const TOPIC_DECKS: DeckDef[] = [
     cards: rhythms('4: q. e q q, q. e h, q q. e q, h q. e, q. e q. e; 3: q. e q'),
   },
   {
+    id: 'rhythm-sixteenths',
+    name: 'Rhythm: sixteenth notes',
+    kind: 'topic',
+    description: 'Four to a beat, and an eighth with two sixteenths.',
+    cards: rhythms(
+      '4: s s s s q q q, q s s s s q q, q q s s s s q, q q q s s s s, e s s q q q, s s e q q q, s s s s s s s s h, e s s e s s h, s s e s s e q q; 2: s s s s q, q s s s s; 3: s s s s q q',
+    ),
+  },
+  {
+    id: 'rhythm-dotted-eighths',
+    name: 'Rhythm: dotted eighths',
+    kind: 'topic',
+    description: 'The dotted eighth and sixteenth (long-short), and the snap (short-long).',
+    cards: rhythms('4: e. s q q q, q e. s q q, q q e. s q, e. s e. s h, e. s e. s e. s e. s, s e. q h; 3: e. s q q; 2: e. s q'),
+  },
+  {
+    id: 'rhythm-ties',
+    name: 'Rhythm: ties & syncopation',
+    kind: 'topic',
+    description: 'Notes tied together (hold, don\'t play again) and accents off the beat.',
+    cards: rhythms('4: h~ q q, q~ e e q q, q. e~ q q, q h q, e q e q q, e q q q e, q e e~ e e q, e e~ e e~ e e q; 3: q~ e e q, h~ e e'),
+  },
+  {
+    id: 'rhythm-triplets',
+    name: 'Rhythm: triplets',
+    kind: 'topic',
+    description: 'Three in the time of two: eighth-note and quarter-note triplets.',
+    cards: rhythms(
+      '4: 3[e e e] q q q, q 3[e e e] h, q q 3[e e e] q, 3[e e e] 3[e e e] h, 3[e e e] 3[e e e] 3[e e e] q, 3[q q q] h, h 3[q q q]; 3: 3[e e e] q q; 2: 3[e e e] q',
+    ),
+  },
+  {
+    id: 'rhythm-compound',
+    name: 'Rhythm: 6/8 and compound time',
+    kind: 'topic',
+    description: 'Beats of a dotted quarter, each split in three: 6/8, 3/8, 9/8 and 12/8.',
+    cards: rhythms(
+      '6/8: q. q., q e q e, e e e e e e, q. e e e, e e e q., h., q e q., q. q e, q. q.r; 3/8: q e, e e e, q.; 9/8: q. q. q., q e q e q e; 12/8: q. q. q. q., q e q e q. q.',
+    ),
+  },
+  {
+    id: 'rhythm-cut',
+    name: 'Rhythm: cut time (2/2)',
+    kind: 'topic',
+    description: 'Two half-note beats in a bar; the metronome clicks the halves.',
+    cards: rhythms('2/2: h h, w, q q h, h q q, q q q q, h. q, q h q'),
+  },
+  {
+    id: 'minor-key-signatures',
+    name: 'Minor keys: name the key',
+    kind: 'topic',
+    description: "A key signature on its own, read as a minor key — play the minor key's tonic in any octave.",
+    cards: MINOR_KEYS.map((k) => makeKeyCard(k.key)),
+  },
+  {
+    id: 'minor-notes',
+    name: 'Minor keys: the raised 7th',
+    kind: 'topic',
+    description: 'Harmonic minor raises the 7th with an accidental the signature doesn\'t show: G♯ in A minor, B♮ in C minor.',
+    cards: leadingTones(
+      [...SIGHT_MINOR_KEYS].sort((a, b) => Math.abs(a.count) - Math.abs(b.count) || b.count - a.count).map((k) => k.key),
+      40,
+    ),
+  },
+  {
     id: 'grand-chords',
     name: 'Grand staff: bass note + chord',
     kind: 'topic',
@@ -334,7 +441,7 @@ const TEST_DECKS: DeckDef[] = [
     makeGrandCard([P('C4'), P('E4'), P('G4')], [P('C3')]),
     makeGrandCard([], [P('G2'), P('B2'), P('D3')]),
   ]),
-  testDeck('test-keys', 'Test deck: sharps, flats & keys', `Sharps and flats, naming a key, and notes in a key signature (including a natural). ${TEST_NOTE}`, [
+  testDeck('test-keys', 'Test deck: sharps, flats & keys', `Sharps and flats, naming major and minor keys, notes in a key signature (including a natural), and a minor key's raised 7th. ${TEST_NOTE}`, [
     makeCard('treble', [P('F#4')]),
     makeCard('bass', [P('Bb2')]),
     makeKeyCard('D'),
@@ -342,6 +449,8 @@ const TEST_DECKS: DeckDef[] = [
     makeGrandCard([P('F#4')], [], 'G'),
     makeGrandCard([], [P('Bb2')], 'F'),
     makeGrandCard([P('F4')], [], 'G'),
+    makeKeyCard('Em'),
+    makeGrandCard([P('G#4')], [], 'Am'),
   ]),
   testDeck('test-chords', 'Test deck: intervals & chords', `A 5th, an octave and a 3rd, then triads in each clef. ${TEST_NOTE}`, [
     makeCard('treble', [P('C4'), P('G4')]),
@@ -350,13 +459,18 @@ const TEST_DECKS: DeckDef[] = [
     makeCard('treble', [P('C4'), P('E4'), P('G4')]),
     makeCard('bass', [P('G2'), P('B2'), P('D3')]),
   ]),
-  testDeck('test-rhythm', 'Test deck: rhythm', `One of each: quarters and halves, 3/4, 2/4, rests, eighths, and a dotted quarter. ${TEST_NOTE}`, [
+  testDeck('test-rhythm', 'Test deck: rhythm', `One of each: quarters and halves, 3/4, 2/4, rests, eighths, a dotted quarter, sixteenths, a tie, a triplet, 6/8 and 2/2. ${TEST_NOTE}`, [
     makeRhythmCard('q q h', 4),
     makeRhythmCard('h.', 3),
     makeRhythmCard('q q', 2),
     makeRhythmCard('q qr q qr', 4),
     makeRhythmCard('e e q q q', 4),
     makeRhythmCard('q. e h', 4),
+    makeRhythmCard('e s s q q q', 4),
+    makeRhythmCard('q~ e e q q', 4),
+    makeRhythmCard('3[e e e] q h', 4),
+    makeRhythmCard('q e q e', '6/8'),
+    makeRhythmCard('q q h', '2/2'),
   ]),
 ];
 TOPIC_DECKS.push(...TEST_DECKS);

@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttemptMatcher } from '../midi/matcher';
-import { MAJOR_KEYS, toMidi } from '../music/notes';
+import { keyLabel, MAJOR_KEYS, SIGHT_MINOR_KEYS, toMidi } from '../music/notes';
 import type { PhraseMark } from '../music/notation';
-import { grandStaffPhrase, type GrandStyle, type Phrase, phraseEvents, singleStaffPhrase, weightedSampler } from '../music/phrase';
-import { hitWindow } from '../music/rhythm';
+import { grandStaffPhrase, type GrandStyle, type Phrase, phraseEvents, singleStaffPhrase, tieAcrossBars, weightedSampler } from '../music/phrase';
+import { barTicks, features, hitWindow, pulseBpm, pulsesPerBar, pulseTicks, shortestGap, tickMs, TPQ } from '../music/rhythm';
 import { TempoJudge } from '../music/tempo';
 import { barClicks, outputLatencyMs, scheduleClicks } from '../midi/metronome';
 import { type Card, cardLabel, DECKS, type StaffKind } from '../srs/deck';
@@ -23,7 +23,6 @@ interface Props {
   onEndFocus: () => void;
 }
 
-const keyName = (k: string) => k.replace('b', '♭').replace('#', '♯');
 
 const onlyHand = (hand: 'treble' | 'bass') => (c: Card) => c.hands[hand].length > 0 && c.hands[hand === 'treble' ? 'bass' : 'treble'].length === 0;
 
@@ -65,8 +64,10 @@ function buildPhrase(data: AppData, staff: StaffKind, focus: Focus | null): Phra
     const base = inKey.length ? inKey : cardsInKey(DECKS.find((d) => d.id === `${hand}-staff`)!.cards, key);
     return withFocus(base, onlyHand(hand));
   };
+  // Once you've learned ties, some notes are held over the barline too.
+  const ties = patterns.some((p) => features(p).ties) ? (p: Phrase) => tieAcrossBars(p, 0.2) : (p: Phrase) => p;
   if (staff !== 'grand') {
-    return singleStaffPhrase(weightedSampler(pool(staff), data.cards, Math.random, melodic, boost), staff, patterns, key);
+    return ties(singleStaffPhrase(weightedSampler(pool(staff), data.cards, Math.random, melodic, boost), staff, patterns, key));
   }
   const both = withFocus(
     cardsInKey(
@@ -75,7 +76,7 @@ function buildPhrase(data: AppData, staff: StaffKind, focus: Focus | null): Phra
     ),
     (c) => c.hands.treble.length > 0 && c.hands.bass.length > 0,
   );
-  return grandStaffPhrase({ rh: pool('treble'), lh: pool('bass'), both }, data.cards, patterns, data.settings.grandStyle, Math.random, melodic, key, boost);
+  return ties(grandStaffPhrase({ rh: pool('treble'), lh: pool('bass'), both }, data.cards, patterns, data.settings.grandStyle, Math.random, melodic, key, boost));
 }
 
 interface Result {
@@ -165,18 +166,20 @@ export function SightRead({ data, update, focus, onEndFocus }: Props) {
   };
 
   // --- In time: count-in, then the cursor follows the beat and every event is judged on pitch and timing.
-  const beatMs = 60_000 / settings.sightBpm;
+  // Tempo is in quarter notes; the metronome clicks the bar's pulse (dotted quarters in 6/8).
+  const msPerTick = tickMs(settings.sightBpm);
+  const barMs = barTicks(phrase.meter) * msPerTick;
   const startTempo = () => {
     const start = performance.now() + 300;
-    const barStart = start + phrase.beats * beatMs;
+    const barStart = start + barMs;
     const shift = outputLatencyMs() + settings.latencyMs;
     const judge = new TempoJudge(
-      events.map((e) => ({ at: barStart + e.time * beatMs + shift, pitches: e.pitches.map(toMidi) })),
-      hitWindow(beatMs),
+      events.map((e) => ({ at: barStart + e.time * msPerTick + shift, pitches: e.pitches.map(toMidi) })),
+      hitWindow(TPQ * msPerTick, shortestGap(events.map((e) => e.time)) * msPerTick),
       settings.ignoreOctave,
     );
     stopClicks.current();
-    stopClicks.current = scheduleClicks(barClicks(start, beatMs, phrase.beats, phrase.measures.length + 1));
+    stopClicks.current = scheduleClicks(barClicks(start, pulseTicks(phrase.meter) * msPerTick, pulsesPerBar(phrase.meter), phrase.measures.length + 1));
     missCount.current = 0;
     wrongByEvent.current = new Map();
     setMissed(new Set());
@@ -191,7 +194,7 @@ export function SightRead({ data, update, focus, onEndFocus }: Props) {
     let raf = 0;
     const tick = () => {
       const now = performance.now();
-      setCountIn(now < start + phrase.beats * beatMs);
+      setCountIn(now < start + barMs);
       judge.tick(now);
       setCursor(judge.current(now));
       setMissed(new Set(judge.status.flatMap((st, i) => (st === 'miss' ? [i] : []))));
@@ -205,7 +208,7 @@ export function SightRead({ data, update, focus, onEndFocus }: Props) {
       const errs = judge.errors.filter((e): e is number => e !== null);
       const misses = new Set(judge.status.flatMap((st, i) => (st === 'ok' ? [] : [i])));
       missCount.current = judge.wrong + judge.extra;
-      finish(misses, now - start - phrase.beats * beatMs, {
+      finish(misses, now - start - barMs, {
         meanAbs: errs.length ? errs.reduce((a, e) => a + Math.abs(e), 0) / errs.length : 0,
         mean: errs.length ? errs.reduce((a, e) => a + e, 0) / errs.length : 0,
         skipped: judge.errors.filter((e) => e === null).length,
@@ -297,7 +300,7 @@ export function SightRead({ data, update, focus, onEndFocus }: Props) {
           {focus ? STAFF_NAMES[staff as SightClef] : STAFF_NAMES[sc]} · {bars} bar{bars > 1 ? 's' : ''}
         </span>
         <span className="muted small">
-          {focus || settings.sightKey !== 'learned' ? `${keyName(phrase.key)} major` : 'In a key you know'}
+          {focus || settings.sightKey !== 'learned' ? keyLabel(phrase.key) : 'In a key you know'}
         </span>
       </div>
       <div className="side-block">
@@ -317,7 +320,7 @@ export function SightRead({ data, update, focus, onEndFocus }: Props) {
       </div>
       {tempo && (
         <div className="side-block">
-          <Metronome bpm={settings.sightBpm} start={running ? running.start : null} />
+          <Metronome bpm={settings.sightBpm} pulseBpm={pulseBpm(phrase.meter, settings.sightBpm)} start={running ? running.start : null} />
         </div>
       )}
       <div className="side-block">
@@ -369,11 +372,20 @@ export function SightRead({ data, update, focus, onEndFocus }: Props) {
         Key
         <select id="sr-key" disabled={!!focus} value={settings.sightKey} onChange={(e) => set('sightKey', e.target.value)}>
           <option value="learned">Keys I've learned</option>
-          {MAJOR_KEYS.map((k) => (
-            <option key={k.key} value={k.key}>
-              {keyName(k.key)} major
-            </option>
-          ))}
+          <optgroup label="Major">
+            {MAJOR_KEYS.map((k) => (
+              <option key={k.key} value={k.key}>
+                {keyLabel(k.key)}
+              </option>
+            ))}
+          </optgroup>
+          <optgroup label="Minor (harmonic)">
+            {SIGHT_MINOR_KEYS.map((k) => (
+              <option key={k.key} value={k.key}>
+                {keyLabel(k.key)}
+              </option>
+            ))}
+          </optgroup>
         </select>
       </label>
       <label className="opt">

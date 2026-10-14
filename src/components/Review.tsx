@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttemptMatcher } from '../midi/matcher';
-import { midiName, toMidi } from '../music/notes';
+import { isMinor, midiName, toMidi } from '../music/notes';
 import { COLORS } from '../music/notation';
 import { type Card, cardLabel, COURSE_DECKS as COURSES } from '../srs/deck';
 import { courseProgress, studyCards } from '../srs/study';
@@ -330,7 +330,7 @@ export function Review({ data, update, onNavigate }: Props) {
       pick.card.rhythm ? (
         ''
       ) : pick.card.prompt === 'key' ? (
-        'Which major key is this? Play its tonic in any octave'
+        `Which ${isMinor(pick.card.key) ? 'minor' : 'major'} key is this? Play its tonic in any octave`
       ) : (
         `Play the ${pick.card.notes.length > 1 ? 'notes' : 'note'}`
       )

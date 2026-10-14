@@ -32,7 +32,10 @@ const ARM = 92;
 const SWING = 22; // degrees either side
 
 interface Props {
+  /** Tempo in quarter notes per minute (what's shown). */
   bpm: number;
+  /** Clicks per minute, when the pendulum should swing to a different pulse (dotted quarters in 6/8, halves in 2/2). */
+  pulseBpm?: number;
   /** performance.now() time of a beat (the pendulum is at the end of its swing then), or null when stopped. */
   start: number | null;
 }
@@ -41,9 +44,9 @@ interface Props {
  * A simplified pyramid metronome: the pendulum swings in time with the clicks, reaching the end of
  * its swing on every beat, and the sliding weight sits higher for slower tempos, as on the real thing.
  */
-export function Metronome({ bpm, start }: Props) {
+export function Metronome({ bpm, pulseBpm, start }: Props) {
   const arm = useRef<SVGGElement>(null);
-  const beatMs = 60_000 / bpm;
+  const beatMs = 60_000 / (pulseBpm ?? bpm);
   // Weight position along the arm: near the top at 40 BPM, near the pivot at 208.
   const t = Math.min(1, Math.max(0, (bpm - 40) / (208 - 40)));
   const weightY = PIVOT.y - ARM + 10 + t * 58;

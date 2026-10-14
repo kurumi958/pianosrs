@@ -87,9 +87,31 @@ export const MAJOR_KEYS: { key: string; count: number }[] = [
   { key: 'Cb', count: -7 },
 ];
 
-/** Accidentals implied by each major key signature. */
+/** The minor key sharing a major key's signature, a minor third below: C → Am, Bb → Gm, F# → D#m. */
+function relativeMinor(major: string): string {
+  const t = tonic(major, 4);
+  const p = fromDiatonicIndex(diatonicIndex(t) - 2);
+  const want = toMidi(t) - 3;
+  const acc: Accidental = toMidi(p) === want ? '' : toMidi(p) + 1 === want ? '#' : 'b';
+  return `${p.letter}${acc}m`;
+}
+
+/** Minor keys by number of sharps or flats, each sharing its relative major's signature. */
+export const MINOR_KEYS: { key: string; count: number }[] = MAJOR_KEYS.map(({ key, count }) => ({ key: relativeMinor(key), count }));
+
+export const isMinor = (key: string) => key.endsWith('m');
+
+/** Minor keys phrases can be written in: those whose raised 7th needs no double sharp (up to C♯ minor). */
+export const SIGHT_MINOR_KEYS = MINOR_KEYS.filter((k) => k.count <= 4);
+
+/** The major key with the same signature (itself for a major key). */
+export function signatureKey(key: string): string {
+  return isMinor(key) ? MAJOR_KEYS[MINOR_KEYS.findIndex((k) => k.key === key)].key : key;
+}
+
+/** Accidentals implied by each key signature, major and minor. */
 export const KEY_SIGNATURES: Record<string, Partial<Record<Letter, Accidental>>> = Object.fromEntries(
-  MAJOR_KEYS.map(({ key, count }) => [
+  [...MAJOR_KEYS, ...MINOR_KEYS].map(({ key, count }) => [
     key,
     Object.fromEntries((count >= 0 ? SHARP_ORDER : FLAT_ORDER).slice(0, Math.abs(count)).map((l) => [l, count >= 0 ? '#' : 'b'])),
   ]),
@@ -100,9 +122,33 @@ export function keyAccidental(key: string, letter: Letter): Accidental {
   return KEY_SIGNATURES[key]?.[letter] ?? '';
 }
 
-/** The tonic of a major key as a pitch in the given octave, e.g. ("Bb", 4) → Bb4. */
+/** Whether a key signature has any sharps or flats (C major and A minor don't). */
+export const hasSignature = (key: string) => Object.keys(KEY_SIGNATURES[key] ?? {}).length > 0;
+
+/** The tonic of a key as a pitch in the given octave, e.g. ("Bb", 4) → Bb4, ("F#m", 3) → F#3. */
 export function tonic(key: string, octave: number): Pitch {
-  return { letter: key[0] as Letter, acc: (key[1] ?? '') as Accidental, octave };
+  const m = /^([A-G])([#b]?)m?$/.exec(key);
+  if (!m) throw new Error(`Bad key: ${key}`);
+  return { letter: m[1] as Letter, acc: m[2] as Accidental, octave };
+}
+
+/**
+ * The accidental a letter takes in the key's scale. Major keys use their signature; minor keys use harmonic
+ * minor, where the 7th note is raised (G♯ in A minor, B♮ in C minor). Null where that would need a double
+ * sharp (G♯ minor and beyond), which the app doesn't write.
+ */
+export function scaleAccidental(key: string, letter: Letter): Accidental | null {
+  const sig = keyAccidental(key, letter);
+  if (!isMinor(key)) return sig;
+  const leading = LETTERS[(LETTERS.indexOf(tonic(key, 4).letter) + 6) % 7];
+  if (letter !== leading) return sig;
+  return sig === 'b' ? '' : sig === '' ? '#' : null;
+}
+
+/** "B♭ major", "F♯ minor". */
+export function keyLabel(key: string): string {
+  const name = key.replace(/m$/, '').replace('b', '♭').replace('#', '♯');
+  return `${name} ${isMinor(key) ? 'minor' : 'major'}`;
 }
 
 /** What accidental must be printed for this pitch in a key: null if the key signature already implies it. */

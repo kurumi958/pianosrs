@@ -110,6 +110,12 @@ export function App() {
     setData(d);
   }, []);
 
+  useEffect(() => {
+    // The stylesheet reads data-theme; without it, the device's light/dark setting applies.
+    const root = document.documentElement;
+    if (data.settings.theme === 'system') root.removeAttribute('data-theme');
+    else root.setAttribute('data-theme', data.settings.theme);
+  }, [data.settings.theme]);
   useEffect(() => installComputerKeyboard(), []);
   useEffect(() => {
     hub.enableMidi();

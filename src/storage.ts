@@ -29,6 +29,8 @@ export interface Settings {
   sightRhythms: boolean;
   /** Extra timing compensation in ms if your taps consistently register late (positive) or early (negative). */
   latencyMs: number;
+  /** Colour theme: follow the device, or always light / dark. */
+  theme: 'system' | 'light' | 'dark';
   /** Label the C keys on the on-screen piano. Off by default so you read the staff, not the keyboard. */
   showKeyLabels: boolean;
   /** "all" listens to every connected MIDI input. */
@@ -50,6 +52,7 @@ export const DEFAULT_SETTINGS: Settings = {
   melodic: true,
   sightKey: 'learned',
   showKeyLabels: false,
+  theme: 'system',
   rhythmBpm: 72,
   sightMode: 'wait',
   sightBpm: 60,

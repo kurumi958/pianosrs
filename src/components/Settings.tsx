@@ -43,6 +43,17 @@ export function Settings({ data, update, replace }: Props) {
       </header>
 
       <section className="panel stack">
+        <h3>Appearance</h3>
+        <label className="field">
+          Theme
+          <select id="set-theme" value={s.theme} onChange={(e) => set('theme', e.target.value as S['theme'])}>
+            <option value="system">Match my device</option>
+            <option value="light">Light</option>
+            <option value="dark">Dark</option>
+          </select>
+        </label>
+      </section>
+      <section className="panel stack">
         <h3>MIDI</h3>
       {!midi.supported ? (
         <p className="warn">

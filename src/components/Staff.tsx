@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react';
 import type { Card } from '../srs/deck';
-import { type PhraseMark, phraseSize, renderCard, renderPhrase } from '../music/notation';
+import { type PhraseMark, phraseSize, renderCard, renderPhrase, renderRhythm } from '../music/notation';
 import type { Phrase, PhraseEvent } from '../music/phrase';
 import { useElementSize } from '../hooks';
 
@@ -10,6 +10,17 @@ export function CardStaff({ card, color }: { card: Card; color?: string }) {
     if (ref.current) renderCard(ref.current, card, color);
   }, [card, color]);
   return <div className="music-svg" ref={ref} aria-label="Music to play" />;
+}
+
+/** A card drawn small, for previews: its notes, its key signature, or its rhythm. */
+export function CardPreview({ card }: { card: Card }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!ref.current) return;
+    if (card.rhythm) renderRhythm(ref.current, card.rhythm);
+    else renderCard(ref.current, card);
+  }, [card]);
+  return <div className="music-svg" ref={ref} aria-label="Card preview" />;
 }
 
 /** Largest on-screen scale the music is drawn at, so a short phrase doesn't balloon. */

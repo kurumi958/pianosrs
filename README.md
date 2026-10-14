@@ -31,7 +31,8 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
 - **Courses**: an *adult beginner course* that introduces notes unit by unit in the order of an adult method book
   (Faber's Adult Piano Adventures All-in-One Book 1, Units 2–16: first staff notes → bass C-D-E → treble spaces → G position →
   sharps and flats → intervals → scales → primary chords in C and G, with the G major key signature). The next unit opens once
-  80% of the current one has graduated; you can start at any unit (earlier units count as already known) or open the next unit early.
+  80% of the current one has graduated. Click a unit to see every card it teaches (learned ones ticked) and to start the
+  course there (earlier units count as already known); *Open next unit now* opens the next one early.
   A second course, *late beginner to intermediate*, carries on from there in 20 units: notes around middle C, eighth rests,
   F major, naturals, D major, A minor (each key with its notes, a hand position and its primary chords), 2nds/6ths/7ths,
   triad inversions, sixteenths, 6/8, E and D minor, B♭ and E♭, major and minor triads, seventh chords, triplets and

@@ -1,7 +1,5 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { keyLabel, MAJOR_KEYS, MINOR_KEYS, naturalRange, pitchName } from '../music/notes';
-import { renderRhythm } from '../music/notation';
-import type { Card } from '../srs/cards';
 import {
   type CustomDeckSpec,
   type CustomKind,
@@ -11,7 +9,7 @@ import {
   ordinal,
   rhythmProblems,
 } from '../srs/custom';
-import { CardStaff } from './Staff';
+import { CardPreview } from './Staff';
 
 interface Props {
   initial: CustomDeckSpec;
@@ -76,14 +74,6 @@ function Chips<T extends string | number>({
       ))}
     </div>
   );
-}
-
-function RhythmPreview({ card }: { card: Card }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (ref.current && card.rhythm) renderRhythm(ref.current, card.rhythm);
-  }, [card]);
-  return <div className="music-svg" ref={ref} />;
 }
 
 /** Build a deck from choices: what to read, on which staff, over what range, in which keys. */
@@ -319,7 +309,7 @@ export function CustomDeckEditor({ initial, existing, onSave, onCancel }: Props)
           <div className="preview-grid">
             {sample.map((c) => (
               <div key={c.id} className="preview-card">
-                {c.rhythm ? <RhythmPreview card={c} /> : <CardStaff card={c} />}
+                <CardPreview card={c} />
               </div>
             ))}
           </div>

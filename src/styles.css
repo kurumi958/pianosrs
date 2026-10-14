@@ -841,12 +841,14 @@ main.page {
   padding: 0;
   margin: 0;
 }
-.unit,
 .deck-row {
   display: flex;
   align-items: center;
   gap: 12px;
   padding: 9px 4px;
+  border-top: 1px solid var(--line);
+}
+.unit {
   border-top: 1px solid var(--line);
 }
 .unit:first-child,
@@ -872,13 +874,95 @@ main.page {
   border-color: var(--crown);
   color: var(--crown);
 }
-.unit.current {
-  background: var(--crown-wash);
+.unit-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 9px 8px;
+  border: none;
   border-radius: 8px;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: background 0.12s;
 }
-.unit.locked,
-.unit.skipped {
+.unit-row:hover {
+  background: var(--sheet-2);
+}
+.unit-row:focus-visible {
+  outline: 2px solid var(--crown);
+  outline-offset: -2px;
+}
+.unit-chev {
+  flex: none;
+  color: var(--muted);
+  transition: transform 0.15s;
+}
+.unit.expanded .unit-chev {
+  transform: rotate(90deg);
+}
+.unit.current .unit-row {
+  background: var(--crown-wash);
+}
+.unit.current .unit-row:hover {
+  background: rgba(122, 37, 49, 0.13);
+}
+.unit.locked .unit-row > :not(.unit-chev),
+.unit.skipped .unit-row > :not(.unit-chev) {
   opacity: 0.55;
+}
+.unit.locked .unit-row:hover > *,
+.unit.skipped .unit-row:hover > * {
+  opacity: 0.85;
+}
+.unit-detail {
+  margin: 2px 8px 12px 42px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--sheet);
+}
+.unit-detail-head {
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.unit-detail-head p {
+  margin: 0;
+  color: var(--ink-2);
+}
+.unit-cards {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 6px;
+}
+.unit-cards li {
+  position: relative;
+  height: 140px;
+  padding: 2px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--score);
+}
+.unit-cards li.seen {
+  border-color: var(--line-strong);
+}
+.unit-cards li.learned {
+  border-color: var(--sage);
+}
+.card-check {
+  position: absolute;
+  top: 4px;
+  right: 4px;
+  padding: 2px;
+  border-radius: 50%;
+  background: var(--sage);
+  color: var(--sheet);
 }
 .unit-text,
 .deck-text {

@@ -161,8 +161,7 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
     ctx.save();
     ctx.setFont({ family: 'Spectral, Georgia, serif', size: 11, style: 'italic' });
     ctx.setFillStyle('#8a7c70');
-    // At the start of a line the number sits higher, clear of the treble clef's curl.
-    ctx.fillText(String(mi + 1), staves[0].getX() + 3, staves[0].getYForLine(0) - (col === 0 && clefs[0] === 'treble' ? 22 : 8));
+    ctx.fillText(String(mi + 1), staves[0].getX() + 3, staves[0].getYForLine(0) - 8);
     ctx.restore();
     if (grand) {
       if (col === 0) {

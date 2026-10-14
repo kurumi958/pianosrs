@@ -86,21 +86,6 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   slip is Okay, a clean run is Good, and a clean run without hesitating is Easy. You can also practice any bars, either hand,
   waiting for you or in time with a count-in and metronome; the bar strip shows which bars are learned and which keep tripping
   you up. Repeats are read once, as written; grace notes aren't judged.
-- **Songs from PDFs**: a PDF is a picture of the music, so it's transcribed first. *Import MusicXML or PDF* opens a PDF in an
-  editor: the page on one side, the song's details and its notes (in the app's compact notation, one bar per line) on the
-  other, and the engraved result underneath. Claude reads the pages, two ways:
-  - *With your Claude plan* (the default; no API key, no per-page cost): copy the app's instructions, paste them into a Claude
-    chat with the PDF attached, and paste the reply back. If any bars don't add up, the app writes a fix request to send to
-    the same chat.
-  - *With an API key*: each page goes to Claude (`claude-opus-5-5`) automatically, with your own key, which stays in the
-    browser; bars that don't add up are sent back to be read again. With *Look closer* (on by default) Claude also gets a
-    zoom tool: it asks for regions of the page, which the app redraws sharply from the PDF, and reads the music bar by bar
-    up close. On a dense page (Ravel's Pavane) that took note accuracy from about 56% to 98%, at roughly $1–3 a page
-    instead of $0.10–0.40.
-  Either way you compare the engraving with the page and fix what was misread, or type the notes in yourself. The PDF is kept
-  with the song, so *Check or correct the transcription* reopens it side by side. A song keeps one key and time signature
-  throughout. In a test on a one-page Bach minuet (199 notes), Opus read every note right on both runs, Sonnet 96–98%, and
-  Haiku 80–89% (whole stretches an octave off); on a dense Ravel page Haiku gave up partway. So use the most capable model.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
   the middle, and the whole 88-key keyboard is docked along the bottom at full width, so keys never move. The full-screen
@@ -208,8 +193,6 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/songs/library.ts` | Song library (first pieces, the classical corpus loaded on demand, imported songs in IndexedDB) and song decks of passage cards |
 | `public/songs/` | The classical corpus: `index.json` and one compressed MusicXML file per piece |
 | `scripts/corpus/` | How the corpus is made from the Mutopia Project's LilyPond files (see below) |
-| `src/songs/pdf.ts` | Opens PDFs and renders pages, or enlarged regions of them (pdf.js) |
-| `src/songs/transcribe.ts` | Reads a page into the song notation with Claude, zooming in on request and sending back bars that don't add up |
 | `src/songs/play.ts` | Note colours while playing, tie chains, bars to work on |
 | `src/components/*` | React screens |
 
@@ -218,16 +201,18 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
 - Optimising FSRS parameters from your own review history (today: paste them from Anki)
 - Per-deck scheduling presets, leeches and suspending cards
-- PDF transcription: key and time signature changes within a piece; repeat signs and endings
-- PDF transcription: try *Look closer* (the zoom tool) on the Pavane with a real API key, to measure its accuracy and cost per
-  page outside the subagent test
+- Songs from PDFs: bring back the PDF transcriber, removed for now that the corpus covers the classics. It's in the
+  history up to commit `bb92785`: `src/components/PdfTranscriber.tsx`, `src/songs/pdf.ts` (pdf.js) and
+  `src/songs/transcribe.ts` (Claude reads each page, with your plan via a chat or with an API key and a zoom tool: on a
+  dense Ravel page zooming took note accuracy from about 56% to 98%, at $1–3 a page). Still to do there: key and time
+  changes within a piece, repeats and endings, and testing the zoom tool with a real API key
 - Imported songs: include them in *Export backup* (today they live only in the browser that imported them)
 - Judging note lengths (releases), not just onsets; pedalling
 - Songs: playing repeats and voltas as performed; dynamics, ornaments and fingering in the corpus (the converter leaves them
   out); more pieces (tuplets other than triplets, and cadenzas, aren't converted yet); looping a passage while speeding it up
 - Cloud sync between devices
-- Desktop app: keep progress and imported songs in a data file (so backups include songs and PDFs), automatic
-  backups, the API key in the system keychain, code signing and automatic updates
+- Desktop app: keep progress and imported songs in a data file (so backups include imported songs), automatic
+  backups, code signing and automatic updates
 - Native Android build with a MIDI bridge plugin (see above)
 
 ## The classical corpus

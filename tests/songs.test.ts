@@ -246,17 +246,3 @@ describe('transcriptions', () => {
     expect(parse(xml).notes).toHaveLength(score.notes.length);
   });
 });
-
-describe('transcribing in a Claude chat', () => {
-  it('reads the JSON out of a pasted reply', async () => {
-    const { parseChatReply, chatPrompt, chatFixPrompt } = await import('../src/songs/transcribe');
-    const json = { title: 'M', composer: 'B', key: 'Gm', meter: '3/4', tempo: 100, pickup: false, bars: [{ rh: 'D5h.', lh: 'G3h.' }], notes: '' };
-    const r = parseChatReply(`Here it is:\n\`\`\`json\n${JSON.stringify(json)}\n\`\`\`\nLet me know!`);
-    expect(r.key).toBe('Gm');
-    expect(r.bars[0]).toEqual({ rh: 'D5h.', lh: 'G3h.', rh2: '', lh2: '' });
-    expect(parseChatReply(JSON.stringify({ ...json, key: 'H' })).key).toBe('C');
-    expect(() => parseChatReply('no json here')).toThrow(/JSON/);
-    expect(chatPrompt(2)).toMatch(/2 pages/);
-    expect(chatFixPrompt([{ bar: 4, message: 'right hand lasts 2 quarter notes' }])).toMatch(/Bar 5: right hand/);
-  });
-});

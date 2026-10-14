@@ -1,11 +1,8 @@
 import { ArrowLeft, ChevronRight, Play, Search, Upload } from 'lucide-react';
-import { lazy, Suspense, useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { keyLabel } from '../music/notes';
 import { meterName } from '../music/rhythm';
 import { readScoreFile } from '../songs/musicxml';
-import { isPdf } from '../songs/pdf';
-// The PDF editor (with pdf.js and the Claude API client) loads only when a PDF is opened.
-const PdfTranscriber = lazy(() => import('./PdfTranscriber').then((m) => ({ default: m.PdfTranscriber })));
 import {
   allSongs,
   CORPUS_SONGS,
@@ -23,7 +20,6 @@ import {
   songCards,
   songDeckId,
   type SongOptions,
-  songPdf,
 } from '../songs/library';
 import { weakBars } from '../songs/play';
 import type { Hands } from '../songs/score';
@@ -72,12 +68,6 @@ const summary = (song: Song) => {
 
 /** Songs: learn real pieces a few bars at a time, as flash cards and in free practice. */
 export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryChange, onLearn }: Props) {
-  // Transcribing a PDF: a new file, or an imported song's transcription (with its PDF) to correct.
-  const [transcribe, setTranscribe] = useState<{
-    file?: { bytes: Uint8Array; name: string };
-    songId?: string;
-    pdf?: Uint8Array | null;
-  } | null>(null);
   const song = openSong ? songById(openSong) : undefined;
   // A piece from the larger corpus loads its notes when it's opened.
   const [failed, setFailed] = useState<string | null>(null);
@@ -94,24 +84,6 @@ export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryCha
       live = false;
     };
   }, [pending, onLibraryChange]);
-  if (transcribe) {
-    const editing = transcribe.songId ? songById(transcribe.songId) : undefined;
-    return (
-      <Suspense fallback={<p className="muted">Opening the PDF editor…</p>}>
-        <PdfTranscriber
-          file={transcribe.file}
-          song={editing}
-          songPdf={transcribe.pdf}
-          onDone={(id) => {
-            setTranscribe(null);
-            onLibraryChange();
-            onOpen(id);
-          }}
-          onCancel={() => setTranscribe(null)}
-        />
-      </Suspense>
-    );
-  }
   if (pending)
     return (
       <div className="page-inner song-page">
@@ -131,22 +103,19 @@ export function Songs({ data, update, openSong, onOpen, onPractice, onLibraryCha
         onPractice={onPractice}
         onLibraryChange={onLibraryChange}
         onLearn={onLearn}
-        onEditTranscription={async () => setTranscribe({ songId: song.id, pdf: await songPdf(song.id) })}
       />
     );
-  return <SongList data={data} onOpen={onOpen} onLibraryChange={onLibraryChange} onPdf={(file) => setTranscribe({ file })} />;
+  return <SongList data={data} onOpen={onOpen} onLibraryChange={onLibraryChange} />;
 }
 
 function SongList({
   data,
   onOpen,
   onLibraryChange,
-  onPdf,
 }: {
   data: AppData;
   onOpen: (id: string) => void;
   onLibraryChange: () => void;
-  onPdf: (file: { bytes: Uint8Array; name: string }) => void;
 }) {
   const file = useRef<HTMLInputElement>(null);
   const [error, setError] = useState<string | null>(null);
@@ -179,7 +148,6 @@ function SongList({
     setBusy(true);
     try {
       const bytes = new Uint8Array(await f.arrayBuffer());
-      if (isPdf(bytes)) return onPdf({ bytes, name: f.name });
       const xml = readScoreFile(bytes);
       const s = await importSong(xml, f.name);
       onLibraryChange();
@@ -287,19 +255,18 @@ function SongList({
       <section className="panel">
         <h3>Your songs</h3>
         <p className="muted small">
-          Import a score as MusicXML (.musicxml, .xml or compressed .mxl), which MuseScore, Sibelius, Finale and Dorico all export, or as a
-          PDF. A PDF is a picture of the music, so it's read into notes first (by Claude, with your API key, or typed in by you), and you
-          check the result against the page. Imported songs are kept in this browser, so hold on to your files.
+          Import a score as MusicXML (.musicxml, .xml or compressed .mxl), which MuseScore, Sibelius, Finale and Dorico all export, and
+          which MuseScore.com and many IMSLP pages offer for download. Imported songs are kept in this app, so hold on to your files.
         </p>
         {mine.length > 0 && <ul className="song-list">{mine.map(row)}</ul>}
         <div className="row">
           <button className="primary" disabled={busy} onClick={() => file.current?.click()}>
-            <Upload size={16} /> {busy ? 'Importing…' : 'Import MusicXML or PDF…'}
+            <Upload size={16} /> {busy ? 'Importing…' : 'Import MusicXML…'}
           </button>
           <input
             ref={file}
             type="file"
-            accept=".musicxml,.xml,.mxl,.pdf,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml,application/pdf"
+            accept=".musicxml,.xml,.mxl,application/vnd.recordare.musicxml+xml,application/vnd.recordare.musicxml"
             hidden
             onChange={(e) => onFile(e.target.files?.[0])}
           />
@@ -318,7 +285,6 @@ function SongPage({
   onPractice,
   onLibraryChange,
   onLearn,
-  onEditTranscription,
 }: {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
@@ -327,7 +293,6 @@ function SongPage({
   onPractice: (f: SongFocus) => void;
   onLibraryChange: () => void;
   onLearn: Props['onLearn'];
-  onEditTranscription: () => void;
 }) {
   const deckId = songDeckId(song.id);
   const entry = corpusEntry(song.id);
@@ -481,20 +446,13 @@ function SongPage({
 
       {song.source === 'imported' && (
         <div className="row">
-          <span className="muted small">
-            {song.transcription ? 'Transcribed from' : 'Imported from'} {song.fileName}
-          </span>
-          {song.transcription && (
-            <button className="small" onClick={onEditTranscription}>
-              Check or correct the transcription
-            </button>
-          )}
+          <span className="muted small">Imported from {song.fileName}</span>
           <button className="small link" onClick={remove}>
             Remove from your songs
           </button>
         </div>
       )}
-      {song.source === 'corpus' && (
+      {song.source === 'corpus' && !entry && (
         <p className="muted small">Encoded for PianoSRS from a public-domain work; this encoding is released as CC0.</p>
       )}
     </div>

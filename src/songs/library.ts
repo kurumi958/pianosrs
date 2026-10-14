@@ -1,7 +1,7 @@
 import { makePassageCard, type Card } from '../srs/cards';
 import { type DeckDef, setSongDecks } from '../srs/deck';
 import { CORPUS } from './corpus';
-import { compileSong, type SongSource } from './dsl';
+import { compileSong } from './dsl';
 import { parseMusicXML, readScoreFile } from './musicxml';
 import { barsLabel, type Hands, handPlays, type Score } from './score';
 
@@ -18,9 +18,6 @@ export interface Song {
   /** Imported songs: when, and from which file. */
   addedAt?: number;
   fileName?: string;
-  /** Songs transcribed from a PDF: the editable transcription, and whether the PDF is kept to check it against. */
-  transcription?: SongSource;
-  hasPdf?: boolean;
 }
 
 /** How a song is split into flash cards. */
@@ -191,9 +188,7 @@ interface StoredSong {
   xml: string;
   addedAt: number;
   fileName: string;
-  transcription?: SongSource;
-  /** The PDF it was transcribed from. */
-  pdf?: ArrayBuffer;
+  // Songs saved by the PDF transcriber (removed for now) also hold `transcription` and `pdf`; they're left as they are.
 }
 
 const DB = 'pianosrs';
@@ -228,8 +223,6 @@ function fromStored(s: StoredSong): Song {
     score,
     addedAt: s.addedAt,
     fileName: s.fileName,
-    transcription: s.transcription,
-    hasPdf: !!s.pdf,
   };
 }
 
@@ -257,35 +250,14 @@ function contentId(xml: string): string {
 }
 
 /** Add a MusicXML file to the library. Throws (with a readable message) if it can't be used. */
-export async function importSong(xml: string, fileName: string, extra: { transcription?: SongSource; pdf?: Uint8Array } = {}): Promise<Song> {
+export async function importSong(xml: string, fileName: string): Promise<Song> {
   const id = contentId(xml);
-  const stored: StoredSong = { id, xml, addedAt: Date.now(), fileName, transcription: extra.transcription, pdf: extra.pdf?.slice().buffer };
+  const stored: StoredSong = { id, xml, addedAt: Date.now(), fileName };
   const song = fromStored(stored);
   await tx('readwrite', (s) => s.put(stored));
   imported.set(id, song);
   libraryVersion++;
   return song;
-}
-
-/**
- * Save a corrected transcription over an imported song, keeping its id so progress on its passages carries over
- * (passages whose bars changed simply start fresh).
- */
-export async function updateTranscription(id: string, xml: string, transcription: SongSource): Promise<Song> {
-  const old = await tx<StoredSong | undefined>('readonly', (s) => s.get(id));
-  if (!old) throw new Error('That song is no longer in your library.');
-  const stored: StoredSong = { ...old, xml, transcription };
-  const song = fromStored(stored);
-  await tx('readwrite', (s) => s.put(stored));
-  imported.set(id, song);
-  libraryVersion++;
-  return song;
-}
-
-/** The PDF a song was transcribed from, if it was kept. */
-export async function songPdf(id: string): Promise<Uint8Array | null> {
-  const s = await tx<StoredSong | undefined>('readonly', (st) => st.get(id));
-  return s?.pdf ? new Uint8Array(s.pdf) : null;
 }
 
 export async function removeImportedSong(id: string): Promise<void> {

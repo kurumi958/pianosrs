@@ -17,7 +17,6 @@
     "dist:linux": "npm run build && electron-builder --linux"
   },
   "devDependencies": {
-    "@anthropic-ai/sdk": "^0.133.0",
     "@fontsource/instrument-sans": "^5.3.0",
     "@fontsource/jetbrains-mono": "^5.3.0",
     "@fontsource/spectral": "^5.3.0",
@@ -32,7 +31,6 @@
     "jsdom": "^29.1.1",
     "lucide-react": "^1.56.0",
     "opensheetmusicdisplay": "^2.2.1",
-    "pdfjs-dist": "^4.10.38",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",
     "ts-fsrs": "^5.4.2",

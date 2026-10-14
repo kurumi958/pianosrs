@@ -123,10 +123,12 @@ export type PhraseMark = 'pending' | 'current' | 'ok' | 'miss';
 export function phraseSize(phrase: Phrase, perLine: number): { width: number; height: number; lines: number } {
   const grand = phrase.staff === 'grand';
   const lines = Math.ceil(phrase.measures.length / perLine);
-  return { width: (grand ? 25 : 10) + 10 + perLine * MEASURE_W, height: lines * (grand ? 240 : 140) + 20, lines };
+  return { width: (grand ? 25 : 10) + 10 + perLine * MEASURE_W, height: lines * lineHeightOf(grand) + 20, lines };
 }
 
 const MEASURE_W = 230;
+/** Single-staff lines get extra space between them, so two stacked lines don't read as a grand staff. */
+const lineHeightOf = (grand: boolean) => (grand ? 240 : 160);
 
 /** A sight-reading phrase, `perLine` bars to a line. `marks` has one entry per event. */
 export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEvent[], marks: PhraseMark[], perLine: number): void {
@@ -136,7 +138,7 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
   const left = grand ? 25 : 10;
   const n = phrase.measures.length;
   const staffGap = 110;
-  const lineHeight = grand ? 240 : 140;
+  const lineHeight = lineHeightOf(grand);
   const { width, height } = phraseSize(phrase, perLine);
   const ctx = prepare(el, width, height);
   const measureWidth = MEASURE_W;
@@ -155,6 +157,13 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
       if (mi === n - 1) st.setEndBarType(3); // final double bar
       return st.setContext(ctx).draw();
     });
+    // Bar number above the start of every bar, small and muted so it guides without competing with the notes.
+    ctx.save();
+    ctx.setFont({ family: 'Spectral, Georgia, serif', size: 11, style: 'italic' });
+    ctx.setFillStyle('#8a7c70');
+    // At the start of a line the number sits higher, clear of the treble clef's curl.
+    ctx.fillText(String(mi + 1), staves[0].getX() + 3, staves[0].getYForLine(0) - (col === 0 && clefs[0] === 'treble' ? 22 : 8));
+    ctx.restore();
     if (grand) {
       if (col === 0) {
         connect(ctx, staves[0], staves[1], 'brace');

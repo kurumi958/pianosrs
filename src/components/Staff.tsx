@@ -15,22 +15,32 @@ export function CardStaff({ card, color }: { card: Card; color?: string }) {
 /** Largest on-screen scale the music is drawn at, so a short phrase doesn't balloon. */
 const MAX_SCALE = 2.2;
 
-/** Bars per line that show the phrase biggest inside a box of this size. */
+/** How much smaller (relative to the largest fit) the music may be drawn to keep it on fewer lines. */
+const FEWER_LINES_TOLERANCE = 0.85;
+
+/**
+ * Bars per line for a box of this size: the fewest lines that still draw the music within 15% of its largest
+ * possible size. Stacking lines only when it really pays keeps a short phrase on one line, where it can't be
+ * mistaken for a grand staff.
+ */
 function bestPerLine(phrase: Phrase, box: { width: number; height: number }): number {
-  let best = 1;
-  let bestScale = 0;
-  for (let p = 1; p <= phrase.measures.length; p++) {
+  const n = phrase.measures.length;
+  const scaleFor = (p: number) => {
     const { width, height } = phraseSize(phrase, p);
-    const scale = Math.min(MAX_SCALE, box.width / width, box.height / height);
-    // Prefer fewer, fuller lines when the scale is (nearly) the same.
-    if (scale > bestScale + 0.01) {
-      best = p;
-      bestScale = scale;
+    return Math.min(MAX_SCALE, box.width / width, box.height / height);
+  };
+  let bestScale = 0;
+  for (let p = 1; p <= n; p++) bestScale = Math.max(bestScale, scaleFor(p));
+  let perLine = n;
+  for (let p = n; p >= 1; p--) {
+    if (scaleFor(p) >= bestScale * FEWER_LINES_TOLERANCE) {
+      perLine = p;
+      break;
     }
   }
   // Spread bars evenly over the lines rather than stranding one on the last line.
-  const lines = Math.ceil(phrase.measures.length / best);
-  return Math.ceil(phrase.measures.length / lines);
+  const lines = Math.ceil(n / perLine);
+  return Math.ceil(n / lines);
 }
 
 /** The phrase, scaled to fill its box. */

@@ -1,6 +1,7 @@
 import { RotateCw } from 'lucide-react';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { hub, installComputerKeyboard } from './midi/input';
+import { piano } from './audio/piano';
 import { type AppData, loadData, saveData, setDayStartHour } from './storage';
 import { fillFsrsMemory, needsFsrsMemory } from './srs/memory';
 import { Home } from './components/Home';
@@ -115,7 +116,12 @@ export function App() {
   useEffect(() => {
     hub.selectedInput = data.settings.midiInput;
     hub.soundForVirtual = data.settings.onscreenSound;
-  }, [data.settings.midiInput, data.settings.onscreenSound]);
+    hub.soundForMidi = data.settings.midiSound;
+    // Load the piano samples as soon as any sound is on, so the first note isn't the fallback tone.
+    if (data.settings.midiSound || data.settings.onscreenSound) void piano.load();
+    if (!data.settings.midiSound) piano.allOff();
+  }, [data.settings.midiInput, data.settings.onscreenSound, data.settings.midiSound]);
+  useEffect(() => piano.setVolume(data.settings.soundVolume), [data.settings.soundVolume]);
 
   // Songs: the built-in ones are always there; imported ones load from the browser's database.
   const [, setLibraryVersion] = useState(0);

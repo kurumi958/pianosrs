@@ -65,7 +65,12 @@ export function Setup({ data, update, onFinish }: Props) {
     const beat = 60_000 / CHECK_BPM;
     const out = outputLatencyMs();
     const offsets = timing.clicks
-      .map((c) => timing.taps.reduce<number | null>((best, t) => (Math.abs(t - c) < beat / 2 && (best === null || Math.abs(t - c) < Math.abs(best)) ? t - c : best), null))
+      .map((c) =>
+        timing.taps.reduce<number | null>(
+          (best, t) => (Math.abs(t - c) < beat / 2 && (best === null || Math.abs(t - c) < Math.abs(best)) ? t - c : best),
+          null,
+        ),
+      )
       .filter((x): x is number => x !== null)
       .map((x) => x - out);
     setTiming((t) => ({ ...t, result: offsets.length >= TAPS / 2 ? Math.round(median(offsets) / 5) * 5 : NaN }));
@@ -115,7 +120,13 @@ export function Setup({ data, update, onFinish }: Props) {
               <div className={`instrument-check ${midi.devices.length ? 'ok' : ''}`}>
                 <PianoIcon size={22} />
                 <span>
-                  <b>{midi.devices.length ? midi.devices.map((d) => d.name).join(', ') : midi.enabled ? 'No piano found yet' : 'Not connected'}</b>
+                  <b>
+                    {midi.devices.length
+                      ? midi.devices.map((d) => d.name).join(', ')
+                      : midi.enabled
+                        ? 'No piano found yet'
+                        : 'Not connected'}
+                  </b>
                   <small className="muted">
                     {midi.devices.length
                       ? 'Connected. If it shows a generic name like "USB-MIDI", that is normal.'
@@ -138,13 +149,17 @@ export function Setup({ data, update, onFinish }: Props) {
         {step === 1 && (
           <>
             <h3>Play middle C</h3>
-            <p>Middle C is the C nearest the middle of the keyboard, usually just left of the brand name. Play it, then a few other keys.</p>
+            <p>
+              Middle C is the C nearest the middle of the keyboard, usually just left of the brand name. Play it, then a few other keys.
+            </p>
             <div className="note-readout" aria-live="polite">
               {lastNote ? (
                 <>
                   <b>{midiName(lastNote.note)}</b>
                   <small className="muted">
-                    {lastNote.source === 'midi' ? `from your piano, velocity ${lastNote.velocity}` : 'from the on-screen or computer keyboard'}
+                    {lastNote.source === 'midi'
+                      ? `from your piano, velocity ${lastNote.velocity}`
+                      : 'from the on-screen or computer keyboard'}
                   </small>
                 </>
               ) : (
@@ -157,7 +172,7 @@ export function Setup({ data, update, onFinish }: Props) {
                   ? '✓ That is middle C (C4). Your piano sends the right notes.'
                   : Math.abs(lastNote.note - 60) % 12 === 0
                     ? `That is ${midiName(lastNote.note)}, an octave ${lastNote.note > 60 ? 'above' : 'below'} middle C. If you played middle C, your piano's transpose or octave setting is on: reset it on the piano.`
-                    : 'If that was middle C, check the piano isn\'t transposed. Otherwise, try middle C.'}
+                    : "If that was middle C, check the piano isn't transposed. Otherwise, try middle C."}
               </p>
             )}
           </>
@@ -237,13 +252,23 @@ export function Setup({ data, update, onFinish }: Props) {
           <>
             <h3>You're ready</h3>
             <ul className="ready-list">
-              <li>{midi.devices.length ? `Piano: ${midi.devices[0].name}` : 'No piano connected: the on-screen and computer keyboards still work.'}</li>
-              <li>{range && keys > 12 ? `Keyboard: ${keys} keys (${midiName(range[0])}–${midiName(range[1])})` : 'Keyboard size not checked.'}</li>
+              <li>
+                {midi.devices.length
+                  ? `Piano: ${midi.devices[0].name}`
+                  : 'No piano connected: the on-screen and computer keyboards still work.'}
+              </li>
+              <li>
+                {range && keys > 12 ? `Keyboard: ${keys} keys (${midiName(range[0])}–${midiName(range[1])})` : 'Keyboard size not checked.'}
+              </li>
               <li>Timing adjustment: {data.settings.latencyMs} ms</li>
             </ul>
             <label className="check">
+              <input type="checkbox" checked={data.settings.midiSound} onChange={(e) => set('midiSound', e.target.checked)} />
+              Play my piano through this computer too (to practice with headphones plugged into the computer)
+            </label>
+            <label className="check">
               <input type="checkbox" checked={data.settings.onscreenSound} onChange={(e) => set('onscreenSound', e.target.checked)} />
-              Play a sound for on-screen and computer-keyboard notes (your piano makes its own)
+              Play a sound for on-screen and computer-keyboard notes
             </label>
             <p className="muted small">You can run this again any time from Settings.</p>
           </>

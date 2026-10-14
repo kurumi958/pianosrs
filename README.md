@@ -60,6 +60,11 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   (major or minor, optionally with chromatic notes); naming key signatures up to a number of sharps or flats; or your
   own rhythms, one bar per line. A live preview shows the card count and the first few cards. Cards with the same notes
   as a built-in deck's are the same cards, so their progress carries over; decks are kept in your backup.
+- **Sound**: a sampled grand piano (the Salamander Grand Piano V3, eight velocity layers) for the on-screen and computer
+  keyboards and, with *Settings → Sound → Play my piano through this computer*, for your MIDI piano too: practice silently
+  with headphones in the computer. Velocity picks the layer, released keys are damped (the top octaves ring on, as on a
+  real piano) and the sustain pedal holds notes. The samples (23 MB in `public/piano/`) load in the background the first
+  time sound is on; a simple tone plays until they're ready.
 - **Things to work on**: notes you often misread in sight-reading (3+ misses in your last 10 attempts, with the keys you
   tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).
   *Practice* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and
@@ -178,6 +183,7 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/srs/course.ts` | The two courses, unit by unit |
 | `src/srs/custom.ts` | Custom decks: the choices that define one, and the cards they make |
 | `src/srs/generators.ts` | Card builders shared by decks and courses (notes in keys, spelled chords, hand positions, rhythms) |
+| `src/audio/piano.ts` | The sampled piano: velocity layers, retuning, dampers and sustain pedal |
 | `src/srs/learn.ts` | Learning sessions: putting new cards into the schedule, deck batches, Review's sections |
 | `src/srs/study.ts` | Course unlocking and which cards are available to study / read |
 | `src/srs/session.ts` | Picks the next card (learning → reviews → new → learn-ahead) |
@@ -215,3 +221,10 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Desktop app: keep progress and imported songs in a data file (so backups include songs and PDFs), automatic
   backups, the API key in the system keychain, code signing and automatic updates
 - Native Android build with a MIDI bridge plugin (see above)
+
+## Credits
+
+- Piano sound: [Salamander Grand Piano V3](https://archive.org/details/SalamanderGrandPianoV3) by Alexander Holm
+  (Yamaha C5), [CC BY 3.0](https://creativecommons.org/licenses/by/3.0/). The MP3s come from
+  [@audio-samples/piano-mp3](https://github.com/darosh/samples-piano-mp3) (velocity layers 2, 4, … 16), trimmed to 9 seconds
+  with a 2-second fade and re-encoded at 96 kbps.

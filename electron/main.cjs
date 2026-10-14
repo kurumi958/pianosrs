@@ -9,6 +9,9 @@ const DIST = path.join(__dirname, '..', 'dist');
 const DEV_URL = process.env.PIANOSRS_DEV_URL;
 const APP_URL = 'app://pianosrs/index.html';
 
+// Notes from the piano should sound straight away, before anything on the page has been clicked.
+app.commandLine.appendSwitch('autoplay-policy', 'no-user-gesture-required');
+
 protocol.registerSchemesAsPrivileged([
   { scheme: 'app', privileges: { standard: true, secure: true, supportFetchAPI: true, stream: true, codeCache: true } },
 ]);

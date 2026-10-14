@@ -1,3 +1,5 @@
+import { piano } from '../audio/piano';
+
 /**
  * One hub for every way of playing notes: a MIDI keyboard (Web MIDI), the on-screen
  * piano, and the computer keyboard. UI code subscribes here and doesn't care which is used.
@@ -32,7 +34,11 @@ class InputHub {
   readonly held = new Set<number>();
   status: MidiStatus = { supported: typeof navigator !== 'undefined' && 'requestMIDIAccess' in navigator, enabled: false, devices: [] };
   selectedInput = 'all';
+  /** Play notes from the on-screen piano and computer keyboard through the computer. */
   soundForVirtual = true;
+  /** Play the MIDI piano's notes through the computer too (for headphones, or a piano with its volume down). */
+  soundForMidi = false;
+  private pedalListeners = new Set<(down: boolean) => void>();
   private access?: MIDIAccess;
   private audio?: AudioContext;
   private voices = new Map<number, { osc: OscillatorNode; gain: GainNode }>();
@@ -56,8 +62,18 @@ class InputHub {
     } else {
       this.held.delete(e.note);
     }
-    if (e.source !== 'midi' && this.soundForVirtual) this.sound(e);
+    if (e.source === 'midi' ? this.soundForMidi : this.soundForVirtual) this.sound(e);
     for (const l of this.listeners) l(e);
+  }
+
+  /** The sustain pedal (MIDI controller 64), from the piano. */
+  onPedal(fn: (down: boolean) => void): () => void {
+    this.pedalListeners.add(fn);
+    return () => this.pedalListeners.delete(fn);
+  }
+  pedal(down: boolean): void {
+    if (this.soundForMidi) piano.pedal(down);
+    for (const l of this.pedalListeners) l(down);
   }
 
   private setStatus(patch: Partial<MidiStatus>): void {
@@ -95,12 +111,22 @@ class InputHub {
     const note = data[1];
     const vel = data[2];
     const time = msg.timeStamp;
+    if (cmd === 0xb0 && note === 64) return this.pedal(vel >= 64);
     if (cmd === 0x90 && vel > 0) this.emit({ type: 'on', note, velocity: vel, source: 'midi', time });
     else if (cmd === 0x80 || (cmd === 0x90 && vel === 0)) this.emit({ type: 'off', note, velocity: 0, source: 'midi', time });
   }
 
-  /** A tiny synth so on-screen / typed notes are audible. */
+  /** Sound for a note: the sampled piano, or a simple tone until its samples have loaded. */
   private sound(e: NoteEvent): void {
+    if (e.type === 'on') {
+      void piano.load();
+      if (piano.noteOn(e.note, e.velocity)) return;
+    } else piano.noteOff(e.note);
+    this.tone(e);
+  }
+
+  /** A tiny synth, while the piano samples load (or if they can't). */
+  private tone(e: NoteEvent): void {
     try {
       if (e.type === 'off') {
         const v = this.voices.get(e.note);
@@ -136,7 +162,23 @@ export const hub = new InputHub();
 
 // Computer keyboard: a row of white keys (A S D F G H J K L ;) with black keys above (W E  T Y U  O P).
 const KEYMAP: Record<string, number> = {
-  a: 0, w: 1, s: 2, e: 3, d: 4, f: 5, t: 6, g: 7, y: 8, h: 9, u: 10, j: 11, k: 12, o: 13, l: 14, p: 15, ';': 16,
+  a: 0,
+  w: 1,
+  s: 2,
+  e: 3,
+  d: 4,
+  f: 5,
+  t: 6,
+  g: 7,
+  y: 8,
+  h: 9,
+  u: 10,
+  j: 11,
+  k: 12,
+  o: 13,
+  l: 14,
+  p: 15,
+  ';': 16,
 };
 let keyboardOctave = 4;
 const typedDown = new Map<string, number>();

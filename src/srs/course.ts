@@ -1,5 +1,5 @@
 import { parsePitch } from '../music/notes';
-import { type Card, makeGrandCard, makeRhythmCard } from './cards';
+import { asTest, type Card, makeGrandCard, makeKeyCard, makeRhythmCard } from './cards';
 import type { CourseUnit, DeckDef } from './deck';
 
 /**
@@ -90,6 +90,12 @@ const ADULT_BEGINNER_UNITS: CourseUnit[] = [
   ),
 ];
 
+const TEST_UNITS: CourseUnit[] = [
+  unit('test-u1', 'Test unit 1 · Middle C', 'Middle C in each clef', cards('C4| |C4').map(asTest)),
+  unit('test-u2', 'Test unit 2 · Key and rhythm', 'Name a key, tap a rhythm', [makeKeyCard('G'), makeRhythmCard('q q h', 4)].map(asTest)),
+  unit('test-u3', 'Test unit 3 · Both hands', 'A melody note over a chord', cards('E4|C3+E3+G3 G4|C3').map(asTest)),
+];
+
 export const COURSES: DeckDef[] = [
   {
     id: 'course-adult-beginner',
@@ -100,5 +106,15 @@ export const COURSES: DeckDef[] = [
     kind: 'course',
     units: ADULT_BEGINNER_UNITS,
     cards: ADULT_BEGINNER_UNITS.flatMap((u) => u.cards),
+  },
+  {
+    id: 'course-test',
+    name: 'Test course',
+    description:
+      'Three tiny units for checking that units open as you learn: answer a unit\'s cards (Easy graduates a card straight away) ' +
+      "and the next one opens. Separate progress, so it never affects your real cards; reset it any time.",
+    kind: 'course',
+    units: TEST_UNITS,
+    cards: TEST_UNITS.flatMap((u) => u.cards),
   },
 ];

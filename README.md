@@ -51,6 +51,21 @@ npm run build    # static site in dist/ — host it anywhere (GitHub Pages, Netl
 Web MIDI needs a secure context (https or localhost) and a Chromium-based browser (Chrome, Edge, Opera, Samsung Internet).
 Firefox supports it with a permission prompt; Safari/iOS doesn't support it at all.
 
+## First test with your piano
+
+Each deck group on the **Decks** page starts with a small *Test deck*, and **Lessons** has a three-unit *Test course*. Their
+cards have their own progress (ids starting with `test:`), so practising them never touches your real cards; use *reset* to
+start a test again. A quick run-through:
+
+1. Plug the piano in (USB, or USB-OTG on Android), open the app in Chrome, allow MIDI. The sidebar should show the device name.
+2. Turn on all five test decks and the test course, then **Review**: notes in both clefs and on ledger lines, both hands at
+   once, chords, sharps and flats, key signatures (play the tonic anywhere), and rhythm cards (tap with the metronome).
+3. Check the grades feel fair: fast right answers Easy, slower ones Good or Hard. Adjust the thresholds in **Settings**.
+4. Rhythm cards: if results say you're consistently "a bit late" (or early), set **Settings → Latency adjustment** by about
+   that many milliseconds.
+5. **Sight-read** in both modes, on the grand staff, with *Learned rhythms* on, and try *In time* at a slow tempo.
+6. In **Lessons**, answer the test course's first unit with quick right answers: unit 2 should open.
+
 ## Android
 
 The simplest route is the web app itself: **Chrome on Android supports Web MIDI**. Plug the piano in with a USB-OTG

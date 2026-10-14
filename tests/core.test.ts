@@ -75,6 +75,18 @@ describe('scheduler', () => {
 });
 
 describe('decks', () => {
+  it('gives every group a test deck whose cards are separate from the real ones', () => {
+    for (const g of DECK_GROUPS) {
+      const test = DECKS.find((d) => d.id === g.decks[0])!;
+      expect(test.name).toMatch(/^Test deck/);
+      expect(test.cards.length).toBeGreaterThanOrEqual(5);
+      for (const c of test.cards) expect(c.id.startsWith('test:')).toBe(true);
+    }
+    const testCourse = DECKS.find((d) => d.id === 'course-test')!;
+    expect(testCourse.units).toHaveLength(3);
+    expect(testCourse.cards.every((c) => c.id.startsWith('test:'))).toBe(true);
+    expect(CARD_BY_ID.size).toBe(ALL_CARDS.length);
+  });
   it('puts every topic deck in exactly one group', () => {
     const grouped = DECK_GROUPS.flatMap((g) => g.decks);
     const topics = DECKS.filter((d) => d.kind === 'topic').map((d) => d.id);

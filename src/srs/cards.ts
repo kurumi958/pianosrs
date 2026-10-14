@@ -72,6 +72,14 @@ export function withKey(card: Card, key: string): Card | null {
     : makeCard(card.staff, move(card.notes), key);
 }
 
+/**
+ * A copy of a card for the test decks, with its own id ("test:" + the original) so practising it
+ * never touches progress on the real card.
+ */
+export function asTest(card: Card): Card {
+  return { ...card, id: `test:${card.id}` };
+}
+
 export function mulberry32(seed: number): () => number {
   let a = seed >>> 0;
   return () => {

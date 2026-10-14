@@ -10,7 +10,7 @@ import {
   parsePitch,
   toMidi,
 } from '../music/notes';
-import { type Card, makeCard, makeGrandCard, makeKeyCard, makeRhythmCard, shuffle, uniqueById } from './cards';
+import { asTest, type Card, makeCard, makeGrandCard, makeKeyCard, makeRhythmCard, shuffle, uniqueById } from './cards';
 import { COURSES } from './course';
 
 export { type Card, type StaffKind, cardLabel, makeCard, makeGrandCard, mulberry32, STAFF_LABEL } from './cards';
@@ -38,11 +38,14 @@ export interface DeckDef {
 
 /** Topic deck groups, in display order. */
 export const DECK_GROUPS: { name: string; decks: string[] }[] = [
-  { name: 'Reading the staff', decks: ['treble-staff', 'bass-staff', 'treble-ledger', 'bass-ledger'] },
-  { name: 'Grand staff', decks: ['grand-staff', 'grand-hands', 'grand-chords'] },
-  { name: 'Sharps, flats & key signatures', decks: ['treble-accidentals', 'bass-accidentals', 'key-signatures', 'key-notes-sharp', 'key-notes-flat'] },
-  { name: 'Intervals & chords', decks: ['treble-intervals', 'bass-intervals', 'treble-triads', 'bass-triads'] },
-  { name: 'Rhythm', decks: ['rhythm-basics', 'rhythm-three', 'rhythm-rests', 'rhythm-eighths', 'rhythm-dotted'] },
+  { name: 'Reading the staff', decks: ['test-staff', 'treble-staff', 'bass-staff', 'treble-ledger', 'bass-ledger'] },
+  { name: 'Grand staff', decks: ['test-grand', 'grand-staff', 'grand-hands', 'grand-chords'] },
+  {
+    name: 'Sharps, flats & key signatures',
+    decks: ['test-keys', 'treble-accidentals', 'bass-accidentals', 'key-signatures', 'key-notes-sharp', 'key-notes-flat'],
+  },
+  { name: 'Intervals & chords', decks: ['test-chords', 'treble-intervals', 'bass-intervals', 'treble-triads', 'bass-triads'] },
+  { name: 'Rhythm', decks: ['test-rhythm', 'rhythm-basics', 'rhythm-three', 'rhythm-rests', 'rhythm-eighths', 'rhythm-dotted'] },
 ];
 
 /** Landmark notes first (they anchor everything else), the rest in a stable shuffled order. */
@@ -301,6 +304,62 @@ export const TOPIC_DECKS: DeckDef[] = [
     cards: bassAndChord(),
   },
 ];
+
+/**
+ * Test decks: a few cards from each group that between them use every feature of that group, for checking
+ * the app with a real piano. Their cards have their own ids, so practising them leaves real progress alone.
+ */
+const P = parsePitch;
+const testDeck = (id: string, name: string, description: string, cards: Card[]): DeckDef => ({
+  id,
+  name,
+  kind: 'topic',
+  description,
+  cards: cards.map(asTest),
+});
+const TEST_NOTE = 'Separate progress, so it never affects your real cards; reset it any time.';
+const TEST_DECKS: DeckDef[] = [
+  testDeck('test-staff', 'Test deck: reading the staff', `Treble and bass, on the staff and on ledger lines above and below. ${TEST_NOTE}`, [
+    makeCard('treble', [P('C4')]),
+    makeCard('treble', [P('G5')]),
+    makeCard('bass', [P('F2')]),
+    makeCard('bass', [P('C4')]),
+    makeCard('treble', [P('A3')]),
+    makeCard('bass', [P('E4')]),
+  ]),
+  testDeck('test-grand', 'Test deck: grand staff', `Middle C in each clef, one note per hand, and a left-hand chord. ${TEST_NOTE}`, [
+    makeGrandCard([P('C4')], []),
+    makeGrandCard([], [P('C4')]),
+    makeGrandCard([P('G4')], [P('C3')]),
+    makeGrandCard([P('C4'), P('E4'), P('G4')], [P('C3')]),
+    makeGrandCard([], [P('G2'), P('B2'), P('D3')]),
+  ]),
+  testDeck('test-keys', 'Test deck: sharps, flats & keys', `Sharps and flats, naming a key, and notes in a key signature (including a natural). ${TEST_NOTE}`, [
+    makeCard('treble', [P('F#4')]),
+    makeCard('bass', [P('Bb2')]),
+    makeKeyCard('D'),
+    makeKeyCard('Eb'),
+    makeGrandCard([P('F#4')], [], 'G'),
+    makeGrandCard([], [P('Bb2')], 'F'),
+    makeGrandCard([P('F4')], [], 'G'),
+  ]),
+  testDeck('test-chords', 'Test deck: intervals & chords', `A 5th, an octave and a 3rd, then triads in each clef. ${TEST_NOTE}`, [
+    makeCard('treble', [P('C4'), P('G4')]),
+    makeCard('treble', [P('C4'), P('C5')]),
+    makeCard('bass', [P('F2'), P('A2')]),
+    makeCard('treble', [P('C4'), P('E4'), P('G4')]),
+    makeCard('bass', [P('G2'), P('B2'), P('D3')]),
+  ]),
+  testDeck('test-rhythm', 'Test deck: rhythm', `One of each: quarters and halves, 3/4, 2/4, rests, eighths, and a dotted quarter. ${TEST_NOTE}`, [
+    makeRhythmCard('q q h', 4),
+    makeRhythmCard('h.', 3),
+    makeRhythmCard('q q', 2),
+    makeRhythmCard('q qr q qr', 4),
+    makeRhythmCard('e e q q q', 4),
+    makeRhythmCard('q. e h', 4),
+  ]),
+];
+TOPIC_DECKS.push(...TEST_DECKS);
 
 /** Every distinct card. Courses reuse topic-deck cards by id, so review history is shared between them. */
 export const ALL_CARDS: Card[] = uniqueById([...TOPIC_DECKS, ...COURSES].flatMap((d) => d.cards));

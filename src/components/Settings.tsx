@@ -103,13 +103,20 @@ export function Settings({ data, update, replace }: Props) {
       <p className="muted small">A right answer is graded by how quickly you play it. A wrong note is always "Again".</p>
       <label className="field">
         "Easy" if answered within (seconds)
-        <input type="number" min={0.5} step={0.5} value={s.easyMs / 1000} onChange={(e) => set('easyMs', Number(e.target.value) * 1000)} />
+        <input type="number" min={0.3} step={0.1} value={s.easyMs / 1000} onChange={(e) => set('easyMs', Number(e.target.value) * 1000)} />
       </label>
       <label className="field">
         "Good" if answered within (seconds), slower is "Hard"
         <input type="number" min={1} step={0.5} value={s.goodMs / 1000} onChange={(e) => set('goodMs', Number(e.target.value) * 1000)} />
       </label>
-      <p className="muted small">Times are per note; chords get 50% extra per additional note.</p>
+      <p className="muted small">
+        Times are per note; chords get 50% extra per additional note. Easy is meant for notes you know instantly: it sends a card away for
+        much longer, so most right answers should land on Good. Rhythm cards are Easy only with near-metronomic timing.
+      </p>
+      <label className="check">
+        <input id="set-easy-learning" type="checkbox" checked={s.easyWhileLearning} onChange={(e) => set('easyWhileLearning', e.target.checked)} />
+        Allow Easy on new and learning cards (off: they top out at Good, so a lucky first answer doesn't skip the learning steps)
+      </label>
       </section>
       <SchedulingSettings data={data} update={update} />
       <section className="panel stack">

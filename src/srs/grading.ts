@@ -1,7 +1,7 @@
-import type { Grade } from './scheduler';
+import type { CardStatus, Grade } from './scheduler';
 
 export interface GradingConfig {
-  /** Answers faster than this (per note, scaled for chords) count as Easy. */
+  /** Answers faster than this (per note, scaled for chords) count as Easy. Kept short: Easy should mean instant. */
   easyMs: number;
   /** Answers faster than this count as Good; slower ones as Hard. */
   goodMs: number;
@@ -14,4 +14,12 @@ export function autoGrade(correct: boolean, ms: number, noteCount: number, cfg: 
   if (ms <= cfg.easyMs * scale) return 4;
   if (ms <= cfg.goodMs * scale) return 3;
   return 2;
+}
+
+/**
+ * Easy on a card you're still learning skips the remaining steps and jumps to a long interval, so by default
+ * new, learning and relearning cards top out at Good; Easy is kept for cards you already know.
+ */
+export function limitEasy(grade: Grade, status: CardStatus, easyWhileLearning: boolean): Grade {
+  return grade === 4 && !easyWhileLearning && status !== 'review' ? 3 : grade;
 }

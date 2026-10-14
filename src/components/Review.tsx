@@ -4,7 +4,7 @@ import { midiName, toMidi } from '../music/notes';
 import { COLORS } from '../music/notation';
 import { type Card, cardLabel, COURSE_DECKS as COURSES } from '../srs/deck';
 import { courseProgress, studyCards } from '../srs/study';
-import { autoGrade } from '../srs/grading';
+import { autoGrade, limitEasy } from '../srs/grading';
 import { type CardState, formatDelay, type Grade, GRADE_LABELS, schedule } from '../srs/scheduler';
 import { countQueue, pickNext, type QueuePick } from '../srs/session';
 import { type AppData, dayKey } from '../storage';
@@ -106,8 +106,9 @@ export function Review({ data, update, onNavigate }: Props) {
   }, [pick, phase, showNext]);
 
   /** Rhythm cards grade themselves when the bar ends. */
-  const onRhythmDone = (grade: Grade, result: TapResult, beatMs: number) => {
+  const onRhythmDone = (tapGrade: Grade, result: TapResult, beatMs: number) => {
     if (!pick || phase !== 'question') return;
+    const grade = limitEasy(tapGrade, pick.state.status, data.settings.easyWhileLearning);
     const ms = performance.now() - shownAt.current;
     const timing = describeTaps(result) || 'no taps';
     setLastMs(ms);
@@ -129,7 +130,7 @@ export function Review({ data, update, onNavigate }: Props) {
     if (phase === 'question') {
       const ms = performance.now() - shownAt.current;
       if (result === 'correct') {
-        const grade = autoGrade(true, ms, pick.card.notes.length, data.settings);
+        const grade = limitEasy(autoGrade(true, ms, pick.card.notes.length, data.settings), pick.state.status, data.settings.easyWhileLearning);
         setLastMs(ms);
         setChosen(grade);
         setPhase('correct');

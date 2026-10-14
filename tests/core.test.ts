@@ -14,7 +14,7 @@ import {
   type SchedulerConfig,
 } from '../src/srs/scheduler';
 import { fillFsrsMemory, needsFsrsMemory } from '../src/srs/memory';
-import { dayKey, emptyData, nextDayStart, normalize, setDayStartHour } from '../src/storage';
+import { dayKey, DEFAULT_SETTINGS, emptyData, nextDayStart, normalize, setDayStartHour } from '../src/storage';
 import { ALL_CARDS, CARD_BY_ID, cardLabel, DECK_GROUPS, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
@@ -31,7 +31,7 @@ import {
   phraseEvents,
   singleStaffPhrase,
 } from '../src/music/phrase';
-import { autoGrade } from '../src/srs/grading';
+import { autoGrade, limitEasy } from '../src/srs/grading';
 import { studyStreak } from '../src/srs/today';
 import { mulberry32 } from '../src/srs/deck';
 
@@ -553,6 +553,35 @@ describe('home page', () => {
     expect(studyStreak([day(0), day(1), day(2), day(4)], now)).toBe(3);
     expect(studyStreak([day(1), day(2)], now)).toBe(2); // today not started yet
     expect(studyStreak([day(2)], now)).toBe(0);
+  });
+});
+
+describe('strict Easy', () => {
+  it('needs an instant answer by default', () => {
+    const g = DEFAULT_SETTINGS;
+    expect(g.easyMs).toBe(1000);
+    expect(autoGrade(true, 900, 1, g)).toBe(4);
+    expect(autoGrade(true, 1500, 1, g)).toBe(3); // was Easy under the old 2s default
+    expect(autoGrade(true, 4500, 1, g)).toBe(3);
+    expect(autoGrade(true, 6000, 1, g)).toBe(2); // Hard unchanged
+  });
+  it('keeps new and learning cards at Good unless allowed', () => {
+    for (const status of ['new', 'learning', 'relearning'] as const) {
+      expect(limitEasy(4, status, false)).toBe(3);
+      expect(limitEasy(4, status, true)).toBe(4);
+    }
+    expect(limitEasy(4, 'review', false)).toBe(4);
+    expect(limitEasy(2, 'new', false)).toBe(2);
+  });
+  it('needs near-metronomic timing for an Easy rhythm', () => {
+    const beat = 1000;
+    expect(gradeTaps(matchTaps([0, 1000], [40, 1040], 180), beat)).toBe(4);
+    expect(gradeTaps(matchTaps([0, 1000], [60, 1060], 180), beat)).toBe(3);
+  });
+  it("moves saves still on the old 2s Easy default, but keeps a user's own choice", () => {
+    expect(normalize({ version: 1, cards: {}, settings: { easyMs: 2000 } }).settings.easyMs).toBe(1000);
+    expect(normalize({ version: 1, cards: {}, settings: { easyMs: 1500 } }).settings.easyMs).toBe(1500);
+    expect(normalize({ version: 1, cards: {}, settings: {} }).settings.easyWhileLearning).toBe(false);
   });
 });
 

@@ -22,6 +22,8 @@ export interface Settings {
   srs: SrsSettings;
   easyMs: number;
   goodMs: number;
+  /** Allow Easy on new, learning and relearning cards (off: they top out at Good). */
+  easyWhileLearning: boolean;
   /** Accept the right note in any octave (handy for small 25/32-key controllers). */
   ignoreOctave: boolean;
   phraseLength: number;
@@ -56,8 +58,9 @@ export const DEFAULT_SETTINGS: Settings = {
   enabledDecks: [],
   newPerDay: 10,
   srs: DEFAULT_SRS,
-  easyMs: 2000,
+  easyMs: 1000,
   goodMs: 5000,
+  easyWhileLearning: false,
   ignoreOctave: false,
   phraseLength: 8,
   sightClef: 'treble',
@@ -117,13 +120,18 @@ export function saveData(d: AppData): void {
   localStorage.setItem(KEY, JSON.stringify(d));
 }
 
+/** The Easy threshold used to be 2 seconds; saves still on that old default move to the new, stricter one. */
+function migrateSettings(s: Settings): Settings {
+  return s.easyMs === 2000 ? { ...s, easyMs: DEFAULT_SETTINGS.easyMs } : s;
+}
+
 export function normalize(raw: unknown): AppData {
   const d = raw as Partial<AppData>;
   if (!d || typeof d !== 'object' || d.version !== 1) throw new Error('Not a PianoSRS backup');
   return {
     version: 1,
     cards: d.cards ?? {},
-    settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}), srs: { ...DEFAULT_SRS, ...(d.settings?.srs ?? {}) } },
+    settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}), srs: { ...DEFAULT_SRS, ...(d.settings?.srs ?? {}) } }),
     courses: d.courses ?? {},
     newByDay: d.newByDay ?? {},
     reviewsByDay: d.reviewsByDay ?? {},

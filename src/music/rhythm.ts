@@ -84,12 +84,15 @@ export function hitWindow(beatMs: number): number {
   return Math.min(180, Math.max(80, beatMs * 0.25));
 }
 
-/** Grade a rhythm attempt: any missed or extra note is Again, otherwise by average timing error relative to the beat. */
+/**
+ * Grade a rhythm attempt: any missed or extra note is Again, otherwise by average timing error relative to the beat.
+ * Easy needs near-metronomic timing (within 5% of a beat on average), so most clean attempts are Good.
+ */
 export function gradeTaps(r: TapResult, beatMs: number): Grade {
   if (r.extra > 0 || r.errors.some((e) => e === null)) return 1;
   const errs = r.errors as number[];
   const mean = errs.reduce((a, e) => a + Math.abs(e), 0) / Math.max(1, errs.length);
-  if (mean <= beatMs * 0.08) return 4;
+  if (mean <= beatMs * 0.05) return 4;
   if (mean <= beatMs * 0.15) return 3;
   return 2;
 }

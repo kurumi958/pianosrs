@@ -117,9 +117,7 @@ export function Sidebar({ data, tab, onNavigate, collapsed, onToggleCollapsed, f
   return (
     <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Main">
       <div className="brand" title="PianoSRS">
-        <span className="brand-mark" aria-hidden>
-          P
-        </span>
+        <img className="brand-mark" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" aria-hidden />
         <span className="brand-name">PianoSRS</span>
       </div>
 

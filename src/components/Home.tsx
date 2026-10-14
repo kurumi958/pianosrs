@@ -28,7 +28,8 @@ export function Home({ data, update, onNavigate }: Props) {
     <>
       <header className="home-title">
         <h1>
-          <span className="clef">𝄞</span> PianoSRS
+          <img className="home-mark" src={`${import.meta.env.BASE_URL}icon.svg`} alt="" aria-hidden />
+          PianoSRS
         </h1>
         <p>{dateLine()}</p>
       </header>

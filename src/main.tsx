@@ -1,6 +1,7 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
 import { App } from './App';
+import '@fontsource/uncial-antiqua/latin-400.css';
 import '@fontsource/spectral/latin-400.css';
 import '@fontsource/spectral/latin-600.css';
 import '@fontsource/spectral/latin-700.css';

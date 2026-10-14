@@ -23,6 +23,8 @@
   --brick: #b0402c;
   --score: #fcf8ee;
   --shadow: 0 1px 2px rgba(60, 40, 20, 0.06), 0 8px 24px rgba(60, 40, 20, 0.06);
+  /* The wordmark only: uncial capitals, after the lettering of the Bolero album cover. */
+  --brand: 'Uncial Antiqua', 'Spectral', Georgia, serif;
   --display: 'Spectral', Georgia, 'Times New Roman', serif;
   --sans: 'Instrument Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
   --mono: 'JetBrains Mono', ui-monospace, 'SFMono-Regular', Menlo, monospace;
@@ -256,19 +258,11 @@ kbd {
 }
 .brand-mark {
   flex: none;
-  display: grid;
-  place-items: center;
-  width: 30px;
-  height: 30px;
-  border-radius: 7px;
-  background: var(--crown);
-  color: var(--crown-ink);
-  font: 700 1.15rem/1 var(--display);
-  box-shadow: inset 0 0 0 1.5px var(--crown), inset 0 0 0 3px color-mix(in srgb, var(--gold) 70%, var(--crown));
+  width: 32px;
+  height: 32px;
 }
 .brand-name {
-  font: 600 1.28rem/1 var(--display);
-  letter-spacing: 0.01em;
+  font: 400 1.32rem/1 var(--brand);
   color: var(--crown);
 }
 .nav-sections {
@@ -629,14 +623,17 @@ main.page {
   padding: 12px 0 4px;
 }
 .home-title h1 {
-  font-size: clamp(2.4rem, 5vw, 3.6rem);
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.32em;
+  font: 400 clamp(2.4rem, 5vw, 3.5rem) / 1.1 var(--brand);
   color: var(--crown);
-  letter-spacing: -0.02em;
 }
-.home-title h1 .clef {
-  color: var(--gold);
-  font-weight: 400;
+.home-mark {
+  width: 1.25em;
+  height: 1.25em;
+  flex: none;
+  filter: drop-shadow(0 2px 6px rgba(122, 37, 49, 0.25));
 }
 .home-title p {
   color: var(--muted);

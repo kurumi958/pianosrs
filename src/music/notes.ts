@@ -65,17 +65,49 @@ export function naturalRange(from: string, to: string): Pitch[] {
   return out;
 }
 
-/** Accidentals implied by each supported key signature. */
-export const KEY_SIGNATURES: Record<string, Partial<Record<Letter, Accidental>>> = {
-  C: {},
-  G: { F: '#' },
-  D: { F: '#', C: '#' },
-  F: { B: 'b' },
-};
+const SHARP_ORDER: Letter[] = ['F', 'C', 'G', 'D', 'A', 'E', 'B'];
+const FLAT_ORDER: Letter[] = ['B', 'E', 'A', 'D', 'G', 'C', 'F'];
+
+/** Major keys by number of sharps (positive) or flats (negative). */
+export const MAJOR_KEYS: { key: string; count: number }[] = [
+  { key: 'C', count: 0 },
+  { key: 'G', count: 1 },
+  { key: 'F', count: -1 },
+  { key: 'D', count: 2 },
+  { key: 'Bb', count: -2 },
+  { key: 'A', count: 3 },
+  { key: 'Eb', count: -3 },
+  { key: 'E', count: 4 },
+  { key: 'Ab', count: -4 },
+  { key: 'B', count: 5 },
+  { key: 'Db', count: -5 },
+  { key: 'F#', count: 6 },
+  { key: 'Gb', count: -6 },
+  { key: 'C#', count: 7 },
+  { key: 'Cb', count: -7 },
+];
+
+/** Accidentals implied by each major key signature. */
+export const KEY_SIGNATURES: Record<string, Partial<Record<Letter, Accidental>>> = Object.fromEntries(
+  MAJOR_KEYS.map(({ key, count }) => [
+    key,
+    Object.fromEntries((count >= 0 ? SHARP_ORDER : FLAT_ORDER).slice(0, Math.abs(count)).map((l) => [l, count >= 0 ? '#' : 'b'])),
+  ]),
+);
+
+/** The accidental a letter gets from the key signature ('' if none). */
+export function keyAccidental(key: string, letter: Letter): Accidental {
+  return KEY_SIGNATURES[key]?.[letter] ?? '';
+}
+
+/** The tonic of a major key as a pitch in the given octave, e.g. ("Bb", 4) → Bb4. */
+export function tonic(key: string, octave: number): Pitch {
+  return { letter: key[0] as Letter, acc: (key[1] ?? '') as Accidental, octave };
+}
 
 /** What accidental must be printed for this pitch in a key: null if the key signature already implies it. */
 export function accidentalInKey(p: Pitch, key = 'C'): '#' | 'b' | 'n' | null {
-  const implied = KEY_SIGNATURES[key]?.[p.letter] ?? '';
+  const implied = keyAccidental(key, p.letter);
   if (p.acc === implied) return null;
   return p.acc === '' ? 'n' : p.acc;
 }

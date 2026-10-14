@@ -67,7 +67,11 @@ export function Settings({ data, update, replace }: Props) {
       )}
       <label className="check">
         <input type="checkbox" checked={s.ignoreOctave} onChange={(e) => set('ignoreOctave', e.target.checked)} />
-        Accept the right note in any octave (for small keyboards — less strict sight-reading)
+        Accept the right note in any octave (a stopgap for keyboards with fewer than 88 keys — less strict reading)
+      </label>
+      <label className="check">
+        <input type="checkbox" checked={s.showKeyLabels} onChange={(e) => set('showKeyLabels', e.target.checked)} />
+        Label the C keys on the on-screen piano (off by default so you read the staff, not the keys)
       </label>
       <label className="check">
         <input type="checkbox" checked={s.onscreenSound} onChange={(e) => set('onscreenSound', e.target.checked)} />

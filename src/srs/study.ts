@@ -1,4 +1,5 @@
-import { type Card, type DeckDef, DECKS } from './deck';
+import { withKey } from './cards';
+import { type Card, CARD_BY_ID, type DeckDef, DECKS } from './deck';
 import type { CardState } from './scheduler';
 
 /** Where you are in a course: the unit you started from, and the furthest unit you've opened by hand. */
@@ -77,4 +78,24 @@ export function knownCards(input: StudyInput): Card[] {
     for (const c of deck.units.slice(0, start).flatMap((u) => u.cards)) if (!ids.has(c.id) && ids.add(c.id)) out.push(c);
   }
   return out;
+}
+
+/** Keys you can read in: C, plus every key of a key-signature card you've started (name-the-key cards don't count). */
+export function learnedKeys(known: Card[]): string[] {
+  const keys = new Set(['C']);
+  for (const c of known) if (!c.prompt) keys.add(c.key);
+  return [...keys];
+}
+
+/**
+ * Rewrite cards into a key signature for sight-reading. Uses the real card when one exists (so mistakes feed
+ * back into its reviews) and drops cards with chromatic notes, which have no equivalent in the new key.
+ */
+export function cardsInKey(cards: Card[], key: string): Card[] {
+  const out = new Map<string, Card>();
+  for (const c of cards) {
+    const k = withKey(c, key);
+    if (k) out.set(k.id, CARD_BY_ID.get(k.id) ?? k);
+  }
+  return [...out.values()];
 }

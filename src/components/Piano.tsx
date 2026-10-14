@@ -12,12 +12,15 @@ interface Props {
   high?: number;
   /** Scroll so that this note is visible. */
   focus?: number;
+  /** Label the C keys. Off by default: reading should come from the staff, not the keyboard. */
+  showLabels?: boolean;
 }
 
 const WHITE_W = 28;
 
 /** Clickable on-screen piano used as a fallback input and to show answers. */
-export function Piano({ held, answer = [], wrong = [], low = 36, high = 84, focus }: Props) {
+/** Full 88-key range: A0 (21) to C8 (108). */
+export function Piano({ held, answer = [], wrong = [], low = 21, high = 108, focus, showLabels = false }: Props) {
   const scroller = useRef<HTMLDivElement>(null);
   const whites: number[] = [];
   for (let n = low; n <= high; n++) if (!isBlackKey(n)) whites.push(n);
@@ -64,7 +67,7 @@ export function Piano({ held, answer = [], wrong = [], low = 36, high = 84, focu
         onPointerUp={release(n)}
         onPointerLeave={release(n)}
       >
-        {n % 12 === 0 && <span className="key-label">{midiName(n)}</span>}
+        {showLabels && n % 12 === 0 && <span className="key-label">{midiName(n)}</span>}
       </div>,
     );
   }

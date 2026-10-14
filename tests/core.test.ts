@@ -1,9 +1,10 @@
 import { describe, expect, it } from 'vitest';
-import { accidentalInKey, midiName, parsePitch, toMidi, vexKey } from '../src/music/notes';
-import { courseProgress, knownCards, studyCards } from '../src/srs/study';
+import { accidentalInKey, KEY_SIGNATURES, midiName, parsePitch, toMidi, vexKey } from '../src/music/notes';
+import { withKey } from '../src/srs/cards';
+import { cardsInKey, courseProgress, knownCards, learnedKeys, studyCards } from '../src/srs/study';
 import type { CardState } from '../src/srs/scheduler';
 import { DEFAULT_SCHEDULER as cfg, newCardState, schedule } from '../src/srs/scheduler';
-import { ALL_CARDS, CARD_BY_ID, DECKS } from '../src/srs/deck';
+import { ALL_CARDS, CARD_BY_ID, cardLabel, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
 import {
@@ -195,7 +196,7 @@ describe('rhythmic phrases', () => {
     for (const m of p.measures) {
       expect(m.treble.some((n) => n.pitches.length)).toBe(true);
       expect(m.bass.some((n) => n.pitches.length)).toBe(true);
-      expect(phraseEvents({ staff: 'grand', measures: [m] })).toHaveLength(4);
+      expect(phraseEvents({ staff: 'grand', key: 'C', measures: [m] })).toHaveLength(4);
     }
   });
 });
@@ -206,6 +207,38 @@ describe('key signatures', () => {
     expect(accidentalInKey(parsePitch('F4'), 'G')).toBe('n');
     expect(accidentalInKey(parsePitch('F#4'), 'C')).toBe('#');
     expect(accidentalInKey(parsePitch('C4'), 'G')).toBeNull();
+  });
+  it('knows all 15 major key signatures', () => {
+    expect(Object.keys(KEY_SIGNATURES)).toHaveLength(15);
+    expect(KEY_SIGNATURES.Eb).toEqual({ B: 'b', E: 'b', A: 'b' });
+    expect(KEY_SIGNATURES.E).toEqual({ F: '#', C: '#', G: '#', D: '#' });
+    expect(KEY_SIGNATURES['C#']).toEqual({ F: '#', C: '#', G: '#', D: '#', A: '#', E: '#', B: '#' });
+  });
+  it('carries accidentals through a bar against the key', () => {
+    const P = parsePitch;
+    expect(accidentalsToDraw([[P('F#4')], [P('F4')], [P('F4')], [P('F#4')], [P('F#5')]], 'G')).toEqual([[null], ['n'], [null], ['#'], [null]]);
+  });
+  it('rewrites cards into another key', () => {
+    const f = CARD_BY_ID.get('treble:F4')!;
+    expect(withKey(f, 'D')!.id).toBe('treble[D]:F#4');
+    expect(withKey(f, 'D')!.notes.map(toMidi)).toEqual([66]);
+    expect(withKey(CARD_BY_ID.get('treble:F#4')!, 'D')).toBeNull(); // chromatic in C
+    expect(withKey(CARD_BY_ID.get('grand[G]:F#4|')!, 'Bb')!.notes.map(toMidi)).toEqual([65]);
+  });
+  it('uses real cards when a phrase is moved into a key, so mistakes count', () => {
+    const inD = cardsInKey([CARD_BY_ID.get('grand:F4|')!, CARD_BY_ID.get('grand:G4|')!], 'D');
+    expect(inD[0]).toBe(CARD_BY_ID.get('grand[D]:F#4|')); // from the sharp-keys deck
+    expect(inD[1].id).toBe('grand[D]:G4|');
+  });
+  it('counts a key as learned once you read in it', () => {
+    const cards = [CARD_BY_ID.get('keysig:A')!, CARD_BY_ID.get('grand[G]:F#4|')!, CARD_BY_ID.get('treble:C4')!];
+    expect(learnedKeys(cards).sort()).toEqual(['C', 'G']);
+  });
+  it('builds name-the-key cards answered in any octave', () => {
+    const c = CARD_BY_ID.get('keysig:Bb')!;
+    expect(c.prompt).toBe('key');
+    expect(new AttemptMatcher(c.notes.map(toMidi), c.anyOctave).noteOn(46)).toBe('correct'); // Bb2
+    expect(cardLabel(c)).toBe('B♭ major');
   });
   it('gives keyed cards their own ids', () => {
     expect(CARD_BY_ID.get('grand[G]:F#4|')!.key).toBe('G');

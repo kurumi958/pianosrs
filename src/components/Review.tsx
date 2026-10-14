@@ -63,7 +63,7 @@ export function Review({ data, update, onChooseDecks }: Props) {
     setPhase('question');
     setWrongNotes([]);
     if (next) {
-      matcher.current = new AttemptMatcher(targetMidi(next.card), data.settings.ignoreOctave);
+      matcher.current = new AttemptMatcher(targetMidi(next.card), data.settings.ignoreOctave || !!next.card.anyOctave);
       shownAt.current = performance.now();
     }
   }, [cards, data, newRemaining]);
@@ -116,11 +116,12 @@ export function Review({ data, update, onChooseDecks }: Props) {
         setWrongNotes([...matcher.current.wrongNotes]);
         setPhase('wrong');
         // Let the player play the right answer to continue.
-        matcher.current = new AttemptMatcher(targetMidi(pick.card), data.settings.ignoreOctave);
+        matcher.current = new AttemptMatcher(targetMidi(pick.card), data.settings.ignoreOctave || !!pick.card.anyOctave);
       }
     } else if (phase === 'wrong') {
       if (result === 'correct') continueAfterWrong();
-      else if (result === 'wrong') matcher.current = new AttemptMatcher(targetMidi(pick.card), data.settings.ignoreOctave);
+      else if (result === 'wrong')
+        matcher.current = new AttemptMatcher(targetMidi(pick.card), data.settings.ignoreOctave || !!pick.card.anyOctave);
     }
   });
 
@@ -217,7 +218,13 @@ export function Review({ data, update, onChooseDecks }: Props) {
       <CardStaff card={pick.card} color={color} />
 
       <div className={`feedback ${phase}`}>
-        {phase === 'question' && <span className="muted">Play the {pick.card.notes.length > 1 ? 'notes' : 'note'} on your piano</span>}
+        {phase === 'question' && (
+          <span className="muted">
+            {pick.card.prompt === 'key'
+              ? 'Which major key is this? Play its tonic (any octave)'
+              : `Play the ${pick.card.notes.length > 1 ? 'notes' : 'note'} on your piano`}
+          </span>
+        )}
         {phase === 'correct' && (
           <span>
             ✓ {cardLabel(pick.card)} · {(lastMs / 1000).toFixed(1)}s · {GRADE_LABELS[chosen]}
@@ -244,7 +251,7 @@ export function Review({ data, update, onChooseDecks }: Props) {
         </div>
       )}
 
-      <Piano held={held} answer={phase === 'wrong' ? target : []} wrong={wrongNotes} focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)} />
+      <Piano showLabels={data.settings.showKeyLabels} held={held} answer={phase === 'wrong' ? target : []} wrong={wrongNotes} focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)} />
     </div>
   );
 }

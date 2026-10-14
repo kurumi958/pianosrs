@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttemptMatcher } from '../midi/matcher';
-import { toMidi } from '../music/notes';
+import { MAJOR_KEYS, toMidi } from '../music/notes';
 import type { PhraseMark } from '../music/notation';
 import { generatePhrase, grandStaffPhrase, type GrandStyle, type Phrase, phraseEvents, singleStaffPhrase } from '../music/phrase';
 import { type Card, cardLabel, DECKS, type StaffKind } from '../srs/deck';
-import { knownCards, studyCards } from '../srs/study';
+import { cardsInKey, knownCards, learnedKeys, studyCards } from '../srs/study';
 import type { AppData, SightClef } from '../storage';
 import { useHeldNotes, useNoteEvents } from '../hooks';
 import { PhraseStaff } from './Staff';
@@ -14,6 +14,8 @@ interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
 }
+
+const keyName = (k: string) => k.replace('b', '♭').replace('#', '♯');
 
 const onlyHand = (hand: 'treble' | 'bass') => (c: Card) => c.hands[hand].length > 0 && c.hands[hand === 'treble' ? 'bass' : 'treble'].length === 0;
 
@@ -30,12 +32,22 @@ function buildPhrase(data: AppData, staff: StaffKind): Phrase {
   const upcoming = studyCards(input);
   const bars = Math.max(1, Math.ceil(data.settings.phraseLength / 4));
   const melodic = data.settings.melodic;
-  const pool = (hand: 'treble' | 'bass') => readable(known.filter(onlyHand(hand)), upcoming.filter(onlyHand(hand)), `${hand}-staff`);
+  const keys = data.settings.sightKey === 'learned' ? learnedKeys(known) : [data.settings.sightKey];
+  const key = keys[Math.floor(Math.random() * keys.length)];
+  const pool = (hand: 'treble' | 'bass') => {
+    const cards = readable(known.filter(onlyHand(hand)), upcoming.filter(onlyHand(hand)), `${hand}-staff`);
+    const inKey = cardsInKey(cards, key);
+    // Every card here was chromatic in this key (rare): fall back to the plain-staff notes.
+    return inKey.length ? inKey : cardsInKey(DECKS.find((d) => d.id === `${hand}-staff`)!.cards, key);
+  };
   if (staff !== 'grand') {
-    return singleStaffPhrase(generatePhrase(pool(staff), data.cards, bars * 4, Math.random, melodic), staff);
+    return singleStaffPhrase(generatePhrase(pool(staff), data.cards, bars * 4, Math.random, melodic), staff, key);
   }
-  const both = known.filter((c) => c.hands.treble.length && c.hands.bass.length);
-  return grandStaffPhrase({ rh: pool('treble'), lh: pool('bass'), both }, data.cards, bars, data.settings.grandStyle, Math.random, melodic);
+  const both = cardsInKey(
+    known.filter((c) => c.hands.treble.length && c.hands.bass.length),
+    key,
+  );
+  return grandStaffPhrase({ rh: pool('treble'), lh: pool('bass'), both }, data.cards, bars, data.settings.grandStyle, Math.random, melodic, key);
 }
 
 interface Result {
@@ -68,7 +80,7 @@ export function SightRead({ data, update }: Props) {
   const phrase = useMemo(
     () => buildPhrase(data, staff),
     // Only regenerate on a new round or settings change, not on every card-state update.
-    [round, staff, data.settings.phraseLength, data.settings.grandStyle, data.settings.melodic, deckKey],
+    [round, staff, data.settings.phraseLength, data.settings.grandStyle, data.settings.melodic, data.settings.sightKey, deckKey],
   );
   const events = useMemo(() => phraseEvents(phrase), [phrase]);
   const targetOf = useCallback(
@@ -138,7 +150,7 @@ export function SightRead({ data, update }: Props) {
     [events, cursor, missed],
   );
 
-  const set = <K extends 'sightClef' | 'phraseLength' | 'grandStyle' | 'melodic'>(k: K, v: AppData['settings'][K]) =>
+  const set = <K extends 'sightClef' | 'phraseLength' | 'grandStyle' | 'melodic' | 'sightKey'>(k: K, v: AppData['settings'][K]) =>
     update((d) => {
       d.settings[k] = v;
     });
@@ -184,6 +196,17 @@ export function SightRead({ data, update }: Props) {
             </select>
           </label>
         )}
+        <label>
+          Key{' '}
+          <select value={data.settings.sightKey} onChange={(e) => set('sightKey', e.target.value)}>
+            <option value="learned">Keys I've learned</option>
+            {MAJOR_KEYS.map((k) => (
+              <option key={k.key} value={k.key}>
+                {keyName(k.key)} major
+              </option>
+            ))}
+          </select>
+        </label>
         <label title="Mostly steps and skips, like real melodies, instead of leaping anywhere">
           <input type="checkbox" checked={data.settings.melodic} onChange={(e) => set('melodic', e.target.checked)} /> Stepwise
         </label>
@@ -219,7 +242,7 @@ export function SightRead({ data, update }: Props) {
         </div>
       )}
 
-      <Piano held={held} wrong={wrong} focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)} />
+      <Piano showLabels={data.settings.showKeyLabels} held={held} wrong={wrong} focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)} />
     </div>
   );
 }

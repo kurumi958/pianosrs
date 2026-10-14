@@ -9,7 +9,8 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   Play straight through (the cursor waits for the right note or chord); notes you stumble on become due in your flash cards
   straight away. Phrases can be treble only, bass only, or **two-handed on the grand staff**, with bar patterns for a right-hand
   melody over held left-hand notes (and the reverse), melodies passing between the hands, and hands together. *Stepwise* mode makes
-  lines move mostly by steps and skips, like real melodies.
+  lines move mostly by steps and skips, like real melodies. Phrases can be written in any major key, or in a random key you've
+  studied: notes take the key signature, and accidentals within a bar are printed against it.
 - **Courses**: an *adult beginner course* that introduces notes unit by unit in the order of an adult method book
   (Faber's Adult Piano Adventures All-in-One Book 1, Units 2–16: first staff notes → bass C-D-E → treble spaces → G position →
   sharps and flats → intervals → scales → primary chords in C and G, with the G major key signature). The next unit opens once
@@ -17,8 +18,12 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
 - **Nothing is studied by default**: on first launch you choose between starting the course and picking decks yourself.
 - **Topic decks**: treble and bass clef notes on the staff, ledger lines, sharps and flats, intervals and triads, plus grand-staff
   decks: *which staff?* (single notes on either staff, middle C on both), *hands together* (one note per hand in C and G
-  position) and *bass note + chord*. Cards are shared by id between decks and the course, so a note learned in one counts in the other.
+  position) and *bass note + chord*, and key signatures: *name the key* (a signature on its own; play the major tonic in any
+  octave) and *reading in sharp / flat keys* (the notes a signature alters, key by key up to six sharps or flats). Cards are
+  shared by id between decks and the course, so a note learned in one counts in the other.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
+- Built for an 88-key piano. The on-screen piano shows all 88 keys, unlabelled by default so you read the staff rather than
+  the keyboard (C labels can be turned on in Settings).
 - No MIDI? The clickable on-screen piano and the computer keyboard (`A`–`;` white keys, `W E T Y U O P` black keys,
   `Z`/`X` change octave) both work.
 
@@ -67,7 +72,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 ## Ideas for later
 
 - Custom decks: build your own from a range of notes, clefs, keys and intervals
-- Key signatures in sight-reading phrases (cards support them already), rhythm reading
+- Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
+- Minor keys
 - FSRS scheduling as an option
 - Cloud sync between devices
 - Native Android build with a MIDI bridge plugin (see above)

@@ -81,6 +81,7 @@ export function renderCard(el: HTMLElement, card: Card, color = COLORS.ink): voi
   connect(ctx, treble, bass, 'brace');
   connect(ctx, treble, bass, 'singleLeft');
   connect(ctx, treble, bass, 'singleRight');
+  if (card.prompt === 'key') return; // just the key signature
   drawVoices(ctx, [
     { stave: treble, notes: [makeNote(card.hands.treble, 'treble', 4, accsInKey(card.hands.treble, card.key), color)] },
     { stave: bass, notes: [makeNote(card.hands.bass, 'bass', 4, accsInKey(card.hands.bass, card.key), color)] },
@@ -111,7 +112,10 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
     const x = left + col * measureWidth;
     const staves = clefs.map((clef, si) => {
       const st = new Stave(x, 20 + line * lineHeight + si * staffGap, measureWidth);
-      if (col === 0) st.addClef(clef);
+      if (col === 0) {
+        st.addClef(clef);
+        if (phrase.key !== 'C') st.addKeySignature(phrase.key);
+      }
       if (mi === 0) st.addTimeSignature('4/4');
       if (mi === n - 1) st.setEndBarType(3); // final double bar
       return st.setContext(ctx).draw();
@@ -128,7 +132,7 @@ export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEven
       ctx,
       clefs.map((clef, si) => {
         const voice = m[clef];
-        const accs = accidentalsToDraw(voice.map((v) => sortPitches(v.pitches)));
+        const accs = accidentalsToDraw(voice.map((v) => sortPitches(v.pitches)), phrase.key);
         let beat = 0;
         const notes = voice.map((v, j) => {
           const idx = eventIndex.get(eventKey(mi, beat));

@@ -1,6 +1,6 @@
 import type { Card, StaffKind } from '../srs/deck';
 import type { CardState } from '../srs/scheduler';
-import { type Clef, diatonicIndex, type Pitch } from './notes';
+import { type Clef, diatonicIndex, keyAccidental, type Pitch } from './notes';
 
 /** How much a card should be favoured in sight-reading practice: weak and recently learned cards come up more. */
 export function practiceWeight(state: CardState | undefined): number {
@@ -72,6 +72,8 @@ export type Measure = Record<Clef, PhraseNote[]>;
 
 export interface Phrase {
   staff: StaffKind;
+  /** Key signature the phrase is written in. */
+  key: string;
   measures: Measure[];
 }
 
@@ -110,14 +112,14 @@ const note = (card: Card, clef: Clef, beats: Beats): PhraseNote => ({ pitches: c
 const rest = (beats: Beats): PhraseNote => ({ pitches: [], beats });
 
 /** Single-staff phrase of quarter notes; the last bar is padded with rests. */
-export function singleStaffPhrase(cards: Card[], clef: Clef): Phrase {
+export function singleStaffPhrase(cards: Card[], clef: Clef, key = 'C'): Phrase {
   const measures: Measure[] = [];
   for (let i = 0; i < cards.length; i += 4) {
     const voice: PhraseNote[] = cards.slice(i, i + 4).map((c) => ({ pitches: c.notes, beats: 1, card: c }));
     while (voice.length < 4) voice.push(rest(1));
     measures.push(clef === 'treble' ? { treble: voice, bass: [] } : { treble: [], bass: voice });
   }
-  return { staff: clef, measures };
+  return { staff: clef, key, measures };
 }
 
 export type GrandStyle = 'mixed' | 'melody' | 'bass-melody' | 'alternate' | 'together';
@@ -145,6 +147,7 @@ export function grandStaffPhrase(
   style: GrandStyle,
   rnd: () => number = Math.random,
   melodic = false,
+  key = 'C',
 ): Phrase {
   const rh = weightedSampler(pools.rh, states, rnd, melodic);
   const lh = weightedSampler(pools.lh, states, rnd, melodic);
@@ -195,23 +198,23 @@ export function grandStaffPhrase(
       measures.push({ treble, bass });
     }
   }
-  return { staff: 'grand', measures };
+  return { staff: 'grand', key, measures };
 }
 
 export type DrawnAccidental = '#' | 'b' | 'n' | null;
 
 /**
- * Accidentals carry through the bar, so work out which ones actually need printing:
- * an accidental is drawn when it differs from what that line/space currently implies (naturals included).
+ * Accidentals carry through the bar, so work out which ones actually need printing: an accidental is drawn
+ * when it differs from what that line/space currently implies — the key signature, or an earlier accidental in the bar.
  */
-export function accidentalsToDraw(measure: Pitch[][]): DrawnAccidental[][] {
+export function accidentalsToDraw(measure: Pitch[][], key = 'C'): DrawnAccidental[][] {
   const current = new Map<string, string>();
   return measure.map((chord) =>
     chord.map((p) => {
-      const key = `${p.letter}${p.octave}`;
-      const prev = current.get(key) ?? '';
+      const pos = `${p.letter}${p.octave}`;
+      const prev = current.get(pos) ?? keyAccidental(key, p.letter);
       if (prev === p.acc) return null;
-      current.set(key, p.acc);
+      current.set(pos, p.acc);
       return p.acc === '' ? 'n' : p.acc;
     }),
   );

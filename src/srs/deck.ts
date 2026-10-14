@@ -1,5 +1,16 @@
-import { type Accidental, type Clef, type Pitch, diatonicIndex, fromDiatonicIndex, naturalRange, parsePitch, toMidi } from '../music/notes';
-import { type Card, makeCard, makeGrandCard, shuffle, uniqueById } from './cards';
+import {
+  type Accidental,
+  type Clef,
+  type Pitch,
+  diatonicIndex,
+  fromDiatonicIndex,
+  keyAccidental,
+  MAJOR_KEYS,
+  naturalRange,
+  parsePitch,
+  toMidi,
+} from '../music/notes';
+import { type Card, makeCard, makeGrandCard, makeKeyCard, shuffle, uniqueById } from './cards';
 import { COURSES } from './course';
 
 export { type Card, type StaffKind, cardLabel, makeCard, makeGrandCard, mulberry32, STAFF_LABEL } from './cards';
@@ -94,6 +105,23 @@ function bassAndChord(): Card[] {
   return out;
 }
 
+/**
+ * Notes the key signature changes, read on the grand staff: each altered letter on the treble staff (E4–F5)
+ * and the bass staff (G2–A3). Keys come in order, each one's cards together.
+ */
+function notesInKeys(keys: string[], seed: number): Card[] {
+  return keys.flatMap((key, k) => {
+    const altered = (p: Pitch) => keyAccidental(key, p.letter) !== '';
+    const inKey = (p: Pitch): Pitch => ({ ...p, acc: keyAccidental(key, p.letter) });
+    const rh = naturalRange('E4', 'F5').filter(altered).map((p) => makeGrandCard([inKey(p)], [], key));
+    const lh = naturalRange('G2', 'A3').filter(altered).map((p) => makeGrandCard([], [inKey(p)], key));
+    return shuffle([...rh, ...lh], seed + k);
+  });
+}
+
+const SHARP_KEYS = MAJOR_KEYS.filter((k) => k.count > 0 && k.count <= 6).map((k) => k.key);
+const FLAT_KEYS = MAJOR_KEYS.filter((k) => k.count < 0 && k.count >= -6).map((k) => k.key);
+
 const INTERVALS = [[2], [3], [4], [7]]; // 3rd, 4th, 5th, octave
 const TRIADS = [[2, 4]];
 
@@ -161,6 +189,27 @@ export const TOPIC_DECKS: DeckDef[] = [
     kind: 'topic',
     description: 'Sharps and flats from F2 to middle C.',
     cards: ordered(accidentals('bass', 'F2', 'C4'), [], 6),
+  },
+  {
+    id: 'key-signatures',
+    name: 'Key signatures: name the key',
+    kind: 'topic',
+    description: 'A key signature on its own — play the major key\'s tonic in any octave. Fewest sharps and flats first.',
+    cards: MAJOR_KEYS.map((k) => makeKeyCard(k.key)),
+  },
+  {
+    id: 'key-notes-sharp',
+    name: 'Key signatures: reading in sharp keys',
+    kind: 'topic',
+    description: 'Notes the signature sharpens, from G major (F♯) up to F♯ major.',
+    cards: notesInKeys(SHARP_KEYS, 20),
+  },
+  {
+    id: 'key-notes-flat',
+    name: 'Key signatures: reading in flat keys',
+    kind: 'topic',
+    description: 'Notes the signature flattens, from F major (B♭) up to G♭ major.',
+    cards: notesInKeys(FLAT_KEYS, 30),
   },
   {
     id: 'treble-intervals',

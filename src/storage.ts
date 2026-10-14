@@ -18,6 +18,10 @@ export interface Settings {
   grandStyle: GrandStyle;
   /** Phrases move mostly by step and skip, like real melodies, instead of leaping anywhere. */
   melodic: boolean;
+  /** Key for sight-reading phrases: a major key, or "learned" for a random key you've studied. */
+  sightKey: string;
+  /** Label the C keys on the on-screen piano. Off by default so you read the staff, not the keyboard. */
+  showKeyLabels: boolean;
   /** "all" listens to every connected MIDI input. */
   midiInput: string;
   /** Play a tone for on-screen / computer-keyboard input (a real piano makes its own sound). */
@@ -35,6 +39,8 @@ export const DEFAULT_SETTINGS: Settings = {
   sightClef: 'treble',
   grandStyle: 'mixed',
   melodic: true,
+  sightKey: 'learned',
+  showKeyLabels: false,
   midiInput: 'all',
   onscreenSound: true,
 };

@@ -12,6 +12,7 @@ import {
   Piano as PianoIcon,
   RotateCw,
   Settings as SettingsIcon,
+  Target,
 } from 'lucide-react';
 import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
 import { hub, installComputerKeyboard } from './midi/input';
@@ -26,13 +27,19 @@ import { Lessons } from './components/Lessons';
 import { Decks } from './components/Decks';
 import { Stats } from './components/Stats';
 import { Settings } from './components/Settings';
+import { WorkOn } from './components/WorkOn';
+import { type Focus, weakSpots } from './srs/weak';
 
-export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Lessons' | 'Decks' | 'Stats' | 'Settings';
+export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Stats' | 'Settings';
+
+/** Sidebar labels, where they differ from the tab's name. */
+const LABEL: Partial<Record<Tab, string>> = { 'Work on': 'Things to work on' };
 
 const NAV: { tab: Tab; icon: ComponentType<{ size?: number }> }[] = [
   { tab: 'Home', icon: House },
   { tab: 'Review', icon: Layers },
   { tab: 'Sight-read', icon: Music },
+  { tab: 'Work on', icon: Target },
   { tab: 'Lessons', icon: GraduationCap },
   { tab: 'Decks', icon: BookOpen },
   { tab: 'Stats', icon: ChartColumn },
@@ -92,6 +99,8 @@ export function App() {
   const [data, setData] = useState<AppData>(loadData);
   const dataRef = useRef(data);
   const [tab, setTab] = useState<Tab>('Home');
+  /** Focused sight-reading started from "Things to work on". */
+  const [focus, setFocus] = useState<Focus | null>(null);
   const [portraitOk, setPortraitOk] = useState(false);
   const midi = useMidiStatus();
   const [fullscreen, toggleFullscreen] = useFullscreen();
@@ -141,6 +150,8 @@ export function App() {
         : 'No MIDI device';
   const midiOk = midi.enabled && midi.devices.length > 0;
   const due = todayPlan(data).total;
+  const weak = weakSpots(data);
+  const toWorkOn = new Set([...weak.sight, ...weak.leeches].map((s) => s.card.id)).size;
   const playing = PLAY_TABS.includes(tab);
 
   return (
@@ -156,17 +167,18 @@ export function App() {
         </div>
         {NAV.map(({ tab: t, icon: Icon }, i) => (
           <div key={t}>
-            {i === 3 && <div className="nav-sep" />}
+            {i === 4 && <div className="nav-sep" />}
             <button
               className={`nav-item ${t === tab ? 'active' : ''}`}
               // Drop focus after a click so playing on the computer keyboard doesn't leave a focus ring here.
               onClick={(e) => {
                 setTab(t);
                 e.currentTarget.blur();
-              }} title={t} aria-current={t === tab ? 'page' : undefined}>
+              }} title={LABEL[t] ?? t} aria-current={t === tab ? 'page' : undefined}>
               <Icon size={19} />
-              <span className="nav-label">{t}</span>
+              <span className="nav-label">{LABEL[t] ?? t}</span>
               {t === 'Review' && due > 0 && <span className="nav-badge">{due}</span>}
+              {t === 'Work on' && toWorkOn > 0 && <span className="nav-badge soft">{toWorkOn}</span>}
             </button>
           </div>
         ))}
@@ -191,7 +203,17 @@ export function App() {
       <main className={playing ? 'play' : 'page'}>
         {tab === 'Home' && <Home data={data} update={update} onNavigate={setTab} />}
         {tab === 'Review' && <Review data={data} update={update} onNavigate={setTab} />}
-        {tab === 'Sight-read' && <SightRead data={data} update={update} />}
+        {tab === 'Sight-read' && <SightRead data={data} update={update} focus={focus} onEndFocus={() => setFocus(null)} />}
+        {tab === 'Work on' && (
+          <WorkOn
+            data={data}
+            update={update}
+            onPractise={(f) => {
+              setFocus(f);
+              setTab('Sight-read');
+            }}
+          />
+        )}
         {tab === 'Lessons' && <Lessons data={data} update={update} />}
         {tab === 'Decks' && <Decks data={data} update={update} />}
         {tab === 'Stats' && <Stats data={data} />}

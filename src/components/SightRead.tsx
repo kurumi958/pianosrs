@@ -8,6 +8,7 @@ import { TempoJudge } from '../music/tempo';
 import { barClicks, outputLatencyMs, scheduleClicks } from '../midi/metronome';
 import { type Card, cardLabel, DECKS, type StaffKind } from '../srs/deck';
 import { cardsInKey, knownCards, learnedKeys, learnedRhythms, phraseRhythms, studyCards } from '../srs/study';
+import { type Focus, focusKey, focusStaff, recordSightResults } from '../srs/weak';
 import type { AppData, SightClef } from '../storage';
 import { useNoteEvents, useShowOnKeyboard } from '../hooks';
 import { PhraseStaff } from './Staff';
@@ -17,6 +18,9 @@ import { Metronome } from './Metronome';
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
+  /** Focused practice from "Things to work on", or null for ordinary phrases. */
+  focus: Focus | null;
+  onEndFocus: () => void;
 }
 
 const keyName = (k: string) => k.replace('b', '♭').replace('#', '♯');
@@ -30,29 +34,48 @@ function readable(known: Card[], upcoming: Card[], fallbackDeck: string): Card[]
   return [...known, ...source.filter((c) => !known.includes(c))].slice(0, 5);
 }
 
-function buildPhrase(data: AppData, staff: StaffKind): Phrase {
+/** How much more often a focus item comes up than an ordinary note in a focused phrase. */
+const FOCUS_BOOST = 8;
+
+function buildPhrase(data: AppData, staff: StaffKind, focus: Focus | null): Phrase {
   const input = { enabledDecks: data.settings.enabledDecks, courses: data.courses, states: data.cards };
   const known = knownCards(input);
   const upcoming = studyCards(input);
   const bars = Math.max(1, Math.ceil(data.settings.phraseLength / 4));
   const melodic = data.settings.melodic;
+  // A focus picks the key (one its items are written in) and, for weak rhythms, the rhythms.
   const keys = data.settings.sightKey === 'learned' ? learnedKeys(known) : [data.settings.sightKey];
-  const key = keys[Math.floor(Math.random() * keys.length)];
-  const patterns = phraseRhythms(data.settings.sightRhythms ? learnedRhythms(known) : [], bars);
+  const key = focus ? focusKey(focus.cards) : keys[Math.floor(Math.random() * keys.length)];
+  const focusRhythms = focus ? focus.cards.filter((c) => c.rhythm).map((c) => c.rhythm!) : [];
+  const patterns = focusRhythms.length
+    ? phraseRhythms(focusRhythms, bars)
+    : phraseRhythms(data.settings.sightRhythms ? learnedRhythms(known) : [], bars);
+  // Focus notes written in this phrase's key (a weak F♯ in G major isn't moved into another key).
+  const focusNotes = focus ? focus.cards.filter((c) => !c.prompt && c.key === key) : [];
+  const focusIds = new Set(focusNotes.map((c) => c.id));
+  const boost = focusIds.size ? (c: Card) => (focusIds.has(c.id) ? FOCUS_BOOST : 1) : undefined;
+  const withFocus = (cards: Card[], keep: (c: Card) => boolean) => {
+    const extra = focusNotes.filter((c) => keep(c) && !cards.some((x) => x.id === c.id));
+    return [...cards, ...extra];
+  };
   const pool = (hand: 'treble' | 'bass') => {
     const cards = readable(known.filter(onlyHand(hand)), upcoming.filter(onlyHand(hand)), `${hand}-staff`);
     const inKey = cardsInKey(cards, key);
     // Every card here was chromatic in this key (rare): fall back to the plain-staff notes.
-    return inKey.length ? inKey : cardsInKey(DECKS.find((d) => d.id === `${hand}-staff`)!.cards, key);
+    const base = inKey.length ? inKey : cardsInKey(DECKS.find((d) => d.id === `${hand}-staff`)!.cards, key);
+    return withFocus(base, onlyHand(hand));
   };
   if (staff !== 'grand') {
-    return singleStaffPhrase(weightedSampler(pool(staff), data.cards, Math.random, melodic), staff, patterns, key);
+    return singleStaffPhrase(weightedSampler(pool(staff), data.cards, Math.random, melodic, boost), staff, patterns, key);
   }
-  const both = cardsInKey(
-    known.filter((c) => c.hands.treble.length && c.hands.bass.length),
-    key,
+  const both = withFocus(
+    cardsInKey(
+      known.filter((c) => c.hands.treble.length && c.hands.bass.length),
+      key,
+    ),
+    (c) => c.hands.treble.length > 0 && c.hands.bass.length > 0,
   );
-  return grandStaffPhrase({ rh: pool('treble'), lh: pool('bass'), both }, data.cards, patterns, data.settings.grandStyle, Math.random, melodic, key);
+  return grandStaffPhrase({ rh: pool('treble'), lh: pool('bass'), both }, data.cards, patterns, data.settings.grandStyle, Math.random, melodic, key, boost);
 }
 
 interface Result {
@@ -70,7 +93,7 @@ interface Result {
 
 const ROTATION: StaffKind[] = ['treble', 'bass', 'grand'];
 
-export function SightRead({ data, update }: Props) {
+export function SightRead({ data, update, focus, onEndFocus }: Props) {
   const [round, setRound] = useState(0);
   const [cursor, setCursor] = useState(0);
   const [missed, setMissed] = useState<Set<number>>(new Set());
@@ -83,18 +106,23 @@ export function SightRead({ data, update }: Props) {
   const startedAt = useRef<number | null>(null);
   const matcher = useRef<AttemptMatcher | null>(null);
   const missCount = useRef(0);
+  /** Wrong keys pressed on each event, for "Things to work on". */
+  const wrongByEvent = useRef(new Map<number, number[]>());
+  const noteWrong = (event: number, midi: number) => wrongByEvent.current.set(event, [...(wrongByEvent.current.get(event) ?? []), midi]);
   const stopClicks = useRef<() => void>(() => {});
 
   const settings = data.settings;
   const tempo = settings.sightMode === 'tempo';
   const sc: SightClef = settings.sightClef;
-  const staff: StaffKind = sc === 'alternate' ? ROTATION[round % ROTATION.length] : sc;
+  const chosenStaff: StaffKind = sc === 'alternate' ? ROTATION[round % ROTATION.length] : sc;
+  // A focus decides the staff: grand if its items use both hands, otherwise the one hand's clef.
+  const staff: StaffKind = (focus && focusStaff(focus.cards)) || chosenStaff;
 
   const deckKey = settings.enabledDecks.join(',');
   const phrase = useMemo(
-    () => buildPhrase(data, staff),
+    () => buildPhrase(data, staff, focus),
     // Only regenerate on a new round or settings change, not on every card-state update.
-    [round, staff, settings.phraseLength, settings.grandStyle, settings.melodic, settings.sightKey, settings.sightRhythms, deckKey],
+    [round, staff, focus, settings.phraseLength, settings.grandStyle, settings.melodic, settings.sightKey, settings.sightRhythms, deckKey],
   );
   const events = useMemo(() => phraseEvents(phrase), [phrase]);
   const targetOf = useCallback(
@@ -112,6 +140,7 @@ export function SightRead({ data, update }: Props) {
     setRunning(null);
     startedAt.current = null;
     missCount.current = 0;
+    wrongByEvent.current = new Map();
     matcher.current = events.length ? targetOf(0) : null;
   }, [events, targetOf, tempo]);
   useEffect(() => () => stopClicks.current(), []);
@@ -121,7 +150,9 @@ export function SightRead({ data, update }: Props) {
     // Notes you stumbled on become due in the flashcards straight away.
     let flagged = 0;
     const now = Date.now();
+    const results = events.map((e, i) => ({ cards: e.cards, missed: misses.has(i), wrong: wrongByEvent.current.get(i) ?? [] }));
     update((d) => {
+      recordSightResults(d.sightStats, results, now);
       for (const c of missedCards) {
         const s = d.cards[c.id];
         if (s && s.status === 'review' && s.due > now) {
@@ -147,6 +178,7 @@ export function SightRead({ data, update }: Props) {
     stopClicks.current();
     stopClicks.current = scheduleClicks(barClicks(start, beatMs, phrase.beats, phrase.measures.length + 1));
     missCount.current = 0;
+    wrongByEvent.current = new Map();
     setMissed(new Set());
     setOkSet(new Set());
     setResult(null);
@@ -189,6 +221,7 @@ export function SightRead({ data, update }: Props) {
       if (running) {
         const r = running.judge.noteOn(e.note, e.time ?? performance.now());
         setWrong(r.right ? [] : [e.note]);
+        if (!r.right && r.event !== null) noteWrong(r.event, e.note);
       } else if (!result) {
         startTempo(); // any key starts the count-in
       }
@@ -200,6 +233,7 @@ export function SightRead({ data, update }: Props) {
     const r = matcher.current.noteOn(e.note);
     if (r === 'wrong') {
       missCount.current++;
+      noteWrong(cursor, e.note);
       setWrong([e.note]);
       setMissed(new Set(missed).add(cursor));
       matcher.current = targetOf(cursor);
@@ -247,12 +281,24 @@ export function SightRead({ data, update }: Props) {
 
   const left = (
     <>
+      {focus && (
+        <div className="side-block focus-block">
+          <span className="eyebrow">Focused practice</span>
+          <span>{focus.title}</span>
+          <span className="muted small">Phrases lean on these, mixed with notes you know.</span>
+          <button className="small" onClick={onEndFocus}>
+            Back to normal practice
+          </button>
+        </div>
+      )}
       <div className="side-block">
         <span className="eyebrow">Phrase</span>
         <span>
-          {STAFF_NAMES[sc]} · {bars} bar{bars > 1 ? 's' : ''}
+          {focus ? STAFF_NAMES[staff as SightClef] : STAFF_NAMES[sc]} · {bars} bar{bars > 1 ? 's' : ''}
         </span>
-        <span className="muted small">{settings.sightKey === 'learned' ? 'In a key you know' : `${keyName(settings.sightKey)} major`}</span>
+        <span className="muted small">
+          {focus || settings.sightKey !== 'learned' ? `${keyName(phrase.key)} major` : 'In a key you know'}
+        </span>
       </div>
       <div className="side-block">
         <span className="eyebrow">Progress</span>
@@ -287,9 +333,10 @@ export function SightRead({ data, update }: Props) {
   const right = (
     <>
       <span className="eyebrow">Options</span>
+      {focus && <span className="muted small">Staff and key follow the focused practice.</span>}
       <label className="opt">
         Staff
-        <select id="sr-staff" value={sc} onChange={(e) => set('sightClef', e.target.value as SightClef)}>
+        <select id="sr-staff" disabled={!!focus} value={sc} onChange={(e) => set('sightClef', e.target.value as SightClef)}>
           <option value="treble">Treble</option>
           <option value="bass">Bass</option>
           <option value="grand">Grand staff (both hands)</option>
@@ -320,7 +367,7 @@ export function SightRead({ data, update }: Props) {
       )}
       <label className="opt">
         Key
-        <select id="sr-key" value={settings.sightKey} onChange={(e) => set('sightKey', e.target.value)}>
+        <select id="sr-key" disabled={!!focus} value={settings.sightKey} onChange={(e) => set('sightKey', e.target.value)}>
           <option value="learned">Keys I've learned</option>
           {MAJOR_KEYS.map((k) => (
             <option key={k.key} value={k.key}>

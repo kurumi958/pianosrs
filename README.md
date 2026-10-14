@@ -33,6 +33,10 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   position) and *bass note + chord*, and key signatures: *name the key* (a signature on its own; play the major tonic in any
   octave) and *reading in sharp / flat keys* (the notes a signature alters, key by key up to six sharps or flats). Cards are
   shared by id between decks and the course, so a note learned in one counts in the other.
+- **Things to work on**: notes you often misread in sight-reading (3+ misses in your last 10 attempts, with the keys you
+  tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).
+  *Practise* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and
+  rhythm, mixed with notes you know. Forgotten cards can also be brought back for review today.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
   the middle, and the whole 88-key keyboard is docked along the bottom at full width, so keys never move. The full-screen

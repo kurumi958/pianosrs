@@ -238,6 +238,17 @@ export function SchedulingSettings({ data, update }: Props) {
         Spread out reviews by a few percent (fuzz), so cards learned together don't keep coming back together
       </label>
 
+      <h4>Cards you keep forgetting</h4>
+      <Num
+        id="srs-leech"
+        label="Forgotten this many times"
+        hint='Cards forgotten this often are listed under "Things to work on"'
+        value={srs.leechThreshold}
+        min={2}
+        max={30}
+        onChange={(v) => set('leechThreshold', v)}
+      />
+
       <h4>Days</h4>
       <Num id="srs-day-start" label="Next day starts at (hour, 0–23)" value={srs.dayStartHour} min={0} max={23} onChange={(v) => set('dayStartHour', v)} />
       <Num

@@ -24,8 +24,15 @@ export function stepWeight(steps: number): number {
  * Returns a function that draws cards by weight, never giving the same card twice in a row (when it can avoid it).
  * With `melodic`, each draw also favours cards close to the previous one, so lines move like real melodies.
  */
-export function weightedSampler(pool: Card[], states: Record<string, CardState>, rnd: () => number, melodic = false): () => Card {
-  const weights = pool.map((c) => practiceWeight(states[c.id]));
+export function weightedSampler(
+  pool: Card[],
+  states: Record<string, CardState>,
+  rnd: () => number,
+  melodic = false,
+  /** Extra weight per card, e.g. to make weak spots come up more in focused practice. */
+  boost?: (c: Card) => number,
+): () => Card {
+  const weights = pool.map((c) => practiceWeight(states[c.id]) * (boost?.(c) ?? 1));
   let prev: Card | undefined;
   return () => {
     const ws = pool.map((c, j) => {
@@ -161,10 +168,11 @@ export function grandStaffPhrase(
   rnd: () => number = Math.random,
   melodic = false,
   key = 'C',
+  boost?: (c: Card) => number,
 ): Phrase {
-  const rh = weightedSampler(pools.rh, states, rnd, melodic);
-  const lh = weightedSampler(pools.lh, states, rnd, melodic);
-  const both = pools.both.length ? weightedSampler(pools.both, states, rnd, melodic) : null;
+  const rh = weightedSampler(pools.rh, states, rnd, melodic, boost);
+  const lh = weightedSampler(pools.lh, states, rnd, melodic, boost);
+  const both = pools.both.length ? weightedSampler(pools.both, states, rnd, melodic, boost) : null;
   const mixed: [Exclude<GrandStyle, 'mixed'>, number][] = [
     ['melody', 3],
     ['bass-melody', 2],

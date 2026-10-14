@@ -36,6 +36,7 @@ import {
 import { autoGrade, limitEasy } from '../src/srs/grading';
 import { studyStreak, todayPlan } from '../src/srs/today';
 import { rate, retentionTable } from '../src/srs/retention';
+import { focusKey, focusStaff, recordSightResults, weakSpots } from '../src/srs/weak';
 import { mulberry32 } from '../src/srs/deck';
 
 const MIN = 60_000;
@@ -237,6 +238,65 @@ describe('retention', () => {
     expect(rows['All time'].all).toEqual({ passed: 4, total: 6 });
     expect(rate(rows.Today.young)).toBe(0.5);
     expect(rate({ passed: 0, total: 0 })).toBeNull();
+  });
+});
+
+describe('things to work on', () => {
+  const C4 = CARD_BY_ID.get('treble:C4')!;
+  const F4 = CARD_BY_ID.get('treble:F4')!;
+  const bassG2 = CARD_BY_ID.get('bass:G2')!;
+  const now = Date.now();
+
+  it('blames a wrong key on the nearest note, and records what was played instead', () => {
+    const stats = {};
+    recordSightResults(stats, [{ cards: [F4, bassG2], missed: true, wrong: [64] }], now);
+    const st = stats as Record<string, { recent: number[]; confusions: Record<string, number> }>;
+    expect(st['treble:F4'].recent).toEqual([1]);
+    expect(st['treble:F4'].confusions).toEqual({ 64: 1 });
+    expect(st['bass:G2'].recent).toEqual([0]); // the left hand was fine
+  });
+  it('flags a note after 3 recent misses, and lets it go as you get it right', () => {
+    const d = emptyData();
+    const miss = { cards: [F4], missed: true, wrong: [64] };
+    const ok = { cards: [F4], missed: false, wrong: [] };
+    recordSightResults(d.sightStats, [miss, ok, miss], now);
+    expect(weakSpots(d, now).sight).toHaveLength(0);
+    recordSightResults(d.sightStats, [miss], now);
+    const spot = weakSpots(d, now).sight[0];
+    expect(spot.card.id).toBe('treble:F4');
+    expect(spot.recentMisses).toBe(3);
+    expect(spot.confusedWith).toEqual(['E4']);
+    recordSightResults(d.sightStats, Array.from({ length: 8 }, () => ok), now);
+    expect(weakSpots(d, now).sight).toHaveLength(0);
+  });
+  it('lists cards forgotten too often until they go quiet for 60 days', () => {
+    const d = emptyData();
+    d.cards['treble:C4'] = { ...newCardState('treble:C4'), status: 'review', interval: 2, lapses: 6 };
+    d.cards['treble:D4'] = { ...newCardState('treble:D4'), status: 'review', interval: 2, lapses: 2 };
+    d.log = [
+      { id: 'treble:C4', t: now - 5 * DAY, grade: 1, ms: 1000 },
+      { id: 'treble:D4', t: now - 5 * DAY, grade: 1, ms: 1000 },
+    ];
+    expect(weakSpots(d, now).leeches.map((l) => l.card.id)).toEqual(['treble:C4']);
+    expect(weakSpots(d, now + 70 * DAY).leeches).toHaveLength(0);
+    d.settings.srs.leechThreshold = 2;
+    expect(weakSpots(d, now).leeches).toHaveLength(2);
+  });
+  it('picks the key and staff a focused phrase needs', () => {
+    const fsharpInG = CARD_BY_ID.get('grand[G]:F#4|')!;
+    expect(focusKey([fsharpInG])).toBe('G');
+    expect(focusKey([C4])).toBe('C');
+    expect(focusKey([CARD_BY_ID.get('rhythm:4/4:q q h')!])).toBe('C');
+    expect(focusStaff([C4])).toBe('treble');
+    expect(focusStaff([bassG2])).toBe('bass');
+    expect(focusStaff([C4, bassG2])).toBe('grand');
+    expect(focusStaff([CARD_BY_ID.get('rhythm:4/4:q q h')!])).toBeNull();
+  });
+  it('makes focus items come up far more often', () => {
+    const pool = deckCards('treble-staff');
+    const draw = weightedSampler(pool, {}, mulberry32(4), false, (c) => (c.id === 'treble:F4' ? 8 : 1));
+    const n = Array.from({ length: 600 }, draw).filter((c) => c.id === 'treble:F4').length;
+    expect(n).toBeGreaterThan(150); // ~8/(8+11) of draws, against ~1/12 without the boost
   });
 });
 

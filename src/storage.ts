@@ -1,4 +1,5 @@
 import type { GrandStyle } from './music/phrase';
+import type { SightStat } from './srs/weak';
 import { type CardState, type CardStatus, DEFAULT_SCHEDULER, type Grade, type SchedulerConfig } from './srs/scheduler';
 import type { CourseState } from './srs/study';
 
@@ -12,9 +13,11 @@ export interface SrsSettings extends SchedulerConfig {
   dayStartHour: number;
   /** When nothing else is due, learning cards due within this many minutes are shown early. */
   learnAheadMin: number;
+  /** A card forgotten this many times is listed under "Things to work on". */
+  leechThreshold: number;
 }
 
-export const DEFAULT_SRS: SrsSettings = { ...DEFAULT_SCHEDULER, maxReviewsPerDay: 200, dayStartHour: 4, learnAheadMin: 20 };
+export const DEFAULT_SRS: SrsSettings = { ...DEFAULT_SCHEDULER, maxReviewsPerDay: 200, dayStartHour: 4, learnAheadMin: 20, leechThreshold: 6 };
 
 export interface Settings {
   enabledDecks: string[];
@@ -100,6 +103,8 @@ export interface AppData {
   newByDay: Record<string, number>;
   /** Day key → number of review cards answered that day (for the daily review limit). */
   reviewsByDay: Record<string, number>;
+  /** Sight-reading record per card: recent misses and the keys played instead. */
+  sightStats: Record<string, SightStat>;
   log: ReviewLogEntry[];
 }
 
@@ -107,7 +112,7 @@ const KEY = 'pianosrs:v1';
 const MAX_LOG = 20_000;
 
 export function emptyData(): AppData {
-  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS, srs: { ...DEFAULT_SRS } }, courses: {}, newByDay: {}, reviewsByDay: {}, log: [] };
+  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS, srs: { ...DEFAULT_SRS } }, courses: {}, newByDay: {}, reviewsByDay: {}, sightStats: {}, log: [] };
 }
 
 export function loadData(): AppData {
@@ -140,6 +145,7 @@ export function normalize(raw: unknown): AppData {
     courses: d.courses ?? {},
     newByDay: d.newByDay ?? {},
     reviewsByDay: d.reviewsByDay ?? {},
+    sightStats: d.sightStats ?? {},
     log: d.log ?? [],
   };
 }

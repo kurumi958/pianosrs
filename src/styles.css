@@ -10,6 +10,8 @@
   --muted: #8a7c70;
   --line: #e2d7c2;
   --line-strong: #cdbd9c;
+  --binding: #efe7d5;
+  --rule: #c9b48c;
   --crown: #7a2531;
   --crown-hover: #651d28;
   --crown-ink: #fff8ee;
@@ -37,6 +39,8 @@
     --muted: #9c8d7e;
     --line: #372e28;
     --line-strong: #4d4139;
+  --binding: #151110;
+  --rule: #5a4a35;
     --crown: #c96b77;
     --crown-hover: #d9808b;
     --crown-ink: #1d1214;
@@ -59,6 +63,8 @@
   --muted: #9c8d7e;
   --line: #372e28;
   --line-strong: #4d4139;
+  --binding: #151110;
+  --rule: #5a4a35;
   --crown: #c96b77;
   --crown-hover: #d9808b;
   --crown-ink: #1d1214;
@@ -212,121 +218,373 @@ kbd {
   padding: env(safe-area-inset-top, 0px) env(safe-area-inset-right, 0px) env(safe-area-inset-bottom, 0px)
     env(safe-area-inset-left, 0px);
 }
+/* Sidebar: a bound edge with grain and a double rule, sections like a table of contents,
+   and a ribbon bookmark on the current page. */
 .sidebar {
-  width: 228px;
+  position: relative;
+  z-index: 5;
+  width: 236px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  padding: 14px 10px;
-  border-right: 1px solid var(--line);
-  background: var(--sheet);
+  gap: 6px;
+  padding: 18px 12px 12px 14px;
+  background:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 .35 0 0 0 0 .25 0 0 0 0 .15 0 0 0 .5 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.22'/%3E%3C/svg%3E"),
+    var(--binding);
+  /* Engraved double rule on the right: a thin line, a gap, a heavier line. */
+  box-shadow:
+    inset -1px 0 var(--line-strong),
+    inset -4px 0 var(--binding),
+    inset -6px 0 var(--rule);
   overflow-y: auto;
   overflow-x: hidden;
-  transition: width 160ms ease;
+  transition: width 180ms ease;
 }
 .sidebar.collapsed {
-  width: 60px;
+  width: 64px;
+  padding-left: 9px;
+  padding-right: 13px;
+  /* Room for tooltips beside the icons. */
+  overflow: visible;
 }
-.sidebar-head {
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 6px 14px;
+  white-space: nowrap;
+}
+.brand-mark {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  border-radius: 7px;
+  background: var(--crown);
+  color: var(--crown-ink);
+  font: 700 1.15rem/1 var(--display);
+  box-shadow: inset 0 0 0 1.5px var(--crown), inset 0 0 0 3px color-mix(in srgb, var(--gold) 70%, var(--crown));
+}
+.brand-name {
+  font: 600 1.28rem/1 var(--display);
+  letter-spacing: 0.01em;
+  color: var(--crown);
+}
+.nav-sections {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.nav-section {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.nav-heading {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 0 4px 10px;
-  border-bottom: 1px solid var(--line);
-  margin-bottom: 6px;
-}
-.brand {
-  font-family: var(--display);
-  font-weight: 700;
-  font-size: 1.2rem;
+  padding: 0 6px 5px 12px;
+  font: 600 0.72rem/1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--gold);
   white-space: nowrap;
+}
+.nav-heading::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(to right, var(--line-strong), transparent);
+}
+.nav-item {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px 0 12px;
+  border: none;
+  border-radius: 7px;
+  background: none;
+  color: var(--ink-2);
+  font-size: 0.93rem;
+  font-weight: 500;
+  text-align: left;
+  white-space: nowrap;
+  transition:
+    background 120ms ease,
+    color 120ms ease;
+}
+.nav-item:hover {
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
+  color: var(--ink);
+}
+.nav-item.active {
+  color: var(--crown);
+  font-weight: 600;
+  background: linear-gradient(to right, var(--crown-wash), transparent 85%);
+}
+.nav-item svg {
+  flex: none;
+}
+.nav-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* The ribbon hangs from the sidebar's left edge with a notched tail, and slides between pages. */
+.ribbon {
+  position: absolute;
+  left: -14px;
+  width: 11px;
+  background: linear-gradient(to right, color-mix(in srgb, var(--crown) 80%, black), var(--crown));
+  clip-path: polygon(0 0, 100% 0, 55% 50%, 100% 100%, 0 100%);
+  transition:
+    top 260ms cubic-bezier(0.3, 0.7, 0.2, 1),
+    height 260ms ease;
+  pointer-events: none;
+}
+.sidebar.collapsed .ribbon {
+  left: -9px;
+  width: 8px;
+}
+.nav-badge {
+  margin-left: auto;
+  min-width: 22px;
+  text-align: center;
+  font: 600 0.72rem/1.5 var(--mono);
+  padding: 0 6px;
+  border-radius: 999px;
+  background: var(--crown);
+  color: var(--crown-ink);
+}
+.sidebar.collapsed .brand-name,
+.sidebar.collapsed .nav-label,
+.sidebar.collapsed .instrument-text,
+.sidebar.collapsed .today-mini {
+  display: none;
+}
+.sidebar.collapsed .brand {
+  padding-left: 8px;
+}
+/* Collapsed: headings shrink to short rules, badges to dots. */
+.sidebar.collapsed .nav-heading {
+  padding: 0 8px 6px;
+}
+.sidebar.collapsed .nav-heading span {
+  display: none;
+}
+.sidebar.collapsed .nav-badge {
+  position: absolute;
+  top: 5px;
+  right: 3px;
+  min-width: 0;
+  width: 8px;
+  height: 8px;
+  padding: 0;
+  font-size: 0;
+  box-shadow: 0 0 0 2px var(--binding);
+}
+/* Styled tooltips for the icon-only collapsed sidebar and the footer tools. */
+.sidebar.collapsed [data-tip]:hover::after,
+.side-tools [data-tip]:hover::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 4px 9px;
+  border-radius: 6px;
+  background: var(--ink);
+  color: var(--paper);
+  font: 500 0.8rem var(--sans);
+  white-space: nowrap;
+  pointer-events: none;
+  z-index: 20;
+  box-shadow: var(--shadow);
+}
+.sidebar:not(.collapsed) .side-tools [data-tip]:hover::after {
+  left: 50%;
+  top: auto;
+  bottom: calc(100% + 8px);
+  transform: translateX(-50%);
+}
+
+.side-foot {
+  margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 14px;
+}
+.today-mini {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px 11px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--sheet) 70%, transparent);
+  color: var(--ink-2);
+  text-align: left;
+  font-size: 0.85rem;
+}
+.today-mini:hover {
+  border-color: var(--line-strong);
+  background: var(--sheet);
+}
+.today-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.today-title {
+  font: 600 0.72rem/1 var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+  color: var(--gold);
+}
+.today-streak {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font: 600 0.75rem var(--mono);
+  color: var(--amber);
+}
+.today-counts b {
+  color: var(--ink);
+  font-weight: 600;
+}
+.today-bar {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.today-bar span {
+  display: block;
+  height: 100%;
+  border-radius: 2px;
+  background: linear-gradient(to right, var(--gold), var(--amber));
+}
+/* The instrument plate: a piano with a pilot light, lit when a device is connected. */
+.instrument {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  background: color-mix(in srgb, var(--sheet) 70%, transparent);
+  color: var(--ink-2);
+  text-align: left;
+}
+.instrument:hover {
+  border-color: var(--line-strong);
+  background: var(--sheet);
+}
+.instrument-icon {
+  position: relative;
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 7px;
+  background: var(--sheet-2);
+  color: var(--ink-2);
+}
+.instrument.on .instrument-icon {
   color: var(--crown);
 }
-.brand .clef {
-  color: var(--gold);
-  margin-right: 2px;
+.lamp {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--muted);
+  box-shadow: 0 0 0 2px var(--binding);
 }
-.sidebar.collapsed .brand,
-.sidebar.collapsed .nav-label,
-.sidebar.collapsed .nav-badge,
-.sidebar.collapsed .side-foot-label {
-  display: none;
+.instrument.on .lamp {
+  background: radial-gradient(circle at 35% 35%, #d4f0b8, var(--sage) 70%);
+  box-shadow:
+    0 0 0 2px var(--binding),
+    0 0 8px 1px color-mix(in srgb, var(--sage) 70%, transparent);
+}
+.instrument.waiting .lamp {
+  background: var(--amber);
+}
+.instrument-text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.25;
+}
+.instrument-text b {
+  font-weight: 600;
+  font-size: 0.86rem;
+  color: var(--ink);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.instrument-text small {
+  font-size: 0.75rem;
+  color: var(--muted);
+}
+.instrument.on .instrument-text small {
+  color: var(--sage);
+}
+.sidebar.collapsed .instrument {
+  justify-content: center;
+  padding: 4px 0;
+  border-color: transparent;
+  background: none;
 }
 .icon-btn {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  padding: 6px;
+  padding: 7px;
   border: 1px solid transparent;
   background: none;
   color: var(--ink-2);
   border-radius: 8px;
 }
 .icon-btn:hover {
-  background: var(--sheet-2);
-  border-color: var(--line);
+  background: color-mix(in srgb, var(--ink) 5%, transparent);
 }
-.nav-item {
+.side-tools {
   display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  padding: 8px 11px;
-  border: 1px solid transparent;
-  border-radius: 8px;
-  background: none;
-  color: var(--ink-2);
-  text-align: left;
-  white-space: nowrap;
+  gap: 2px;
 }
-.nav-item:hover {
-  background: var(--sheet-2);
-  border-color: transparent;
-}
-.nav-item.active {
-  background: var(--crown-wash);
-  color: var(--crown);
-  font-weight: 600;
-}
-.nav-item svg {
-  flex: none;
-}
-.nav-badge {
-  margin-left: auto;
-  font: 600 0.75rem var(--mono);
-  padding: 1px 7px;
-  border-radius: 999px;
-  background: var(--crown);
-  color: var(--crown-ink);
-}
-.nav-sep {
-  height: 1px;
-  background: var(--line);
-  margin: 6px 4px;
-}
-.side-foot {
-  margin-top: auto;
-  display: flex;
+.sidebar.collapsed .side-tools {
   flex-direction: column;
-  gap: 4px;
-  padding-top: 8px;
-  border-top: 1px solid var(--line);
+  align-items: center;
 }
-.midi-status .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: var(--muted);
-  flex: none;
-  margin: 0 5px;
+.side-tools .icon-btn {
+  position: relative;
+  color: var(--muted);
 }
-.midi-status.ok .dot {
-  background: var(--sage);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--sage) 25%, transparent);
+.side-tools .icon-btn:hover {
+  color: var(--ink);
 }
-.side-foot-label {
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+/* Short screens: drop the daily summary so the menu still fits. */
+@media (max-height: 620px) {
+  .today-mini {
+    display: none;
+  }
+  .nav-sections {
+    gap: 8px;
+  }
 }
 
 main {
@@ -1140,10 +1398,14 @@ main.play {
     gap: 6px;
   }
   .sidebar {
-    padding: 8px 6px;
+    padding-top: 10px;
+    padding-bottom: 8px;
+  }
+  .brand {
+    padding-bottom: 8px;
   }
   .nav-item {
-    padding: 5px 9px;
+    height: 30px;
   }
   .big-counts {
     font-size: 1.1rem;

@@ -1,25 +1,8 @@
-import {
-  BookOpen,
-  ChartColumn,
-  GraduationCap,
-  House,
-  Layers,
-  Maximize,
-  Minimize,
-  Music,
-  PanelLeftClose,
-  PanelLeftOpen,
-  Piano as PianoIcon,
-  RotateCw,
-  Settings as SettingsIcon,
-  Target,
-} from 'lucide-react';
-import { type ComponentType, useCallback, useEffect, useRef, useState } from 'react';
+import { RotateCw } from 'lucide-react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { hub, installComputerKeyboard } from './midi/input';
 import { type AppData, loadData, saveData, setDayStartHour } from './storage';
 import { fillFsrsMemory, needsFsrsMemory } from './srs/memory';
-import { useMidiStatus } from './hooks';
-import { todayPlan } from './srs/today';
 import { Home } from './components/Home';
 import { Review } from './components/Review';
 import { SightRead } from './components/SightRead';
@@ -28,23 +11,11 @@ import { Decks } from './components/Decks';
 import { Stats } from './components/Stats';
 import { Settings } from './components/Settings';
 import { WorkOn } from './components/WorkOn';
-import { type Focus, weakSpots } from './srs/weak';
+import { Sidebar } from './components/Sidebar';
+import type { Focus } from './srs/weak';
 
 export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Stats' | 'Settings';
 
-/** Sidebar labels, where they differ from the tab's name. */
-const LABEL: Partial<Record<Tab, string>> = { 'Work on': 'Things to work on' };
-
-const NAV: { tab: Tab; icon: ComponentType<{ size?: number }> }[] = [
-  { tab: 'Home', icon: House },
-  { tab: 'Review', icon: Layers },
-  { tab: 'Sight-read', icon: Music },
-  { tab: 'Work on', icon: Target },
-  { tab: 'Lessons', icon: GraduationCap },
-  { tab: 'Decks', icon: BookOpen },
-  { tab: 'Stats', icon: ChartColumn },
-  { tab: 'Settings', icon: SettingsIcon },
-];
 /** Screens you play on: these use the practice layout with the keyboard. */
 const PLAY_TABS: Tab[] = ['Review', 'Sight-read'];
 const SIDEBAR_KEY = 'pianosrs:sidebar';
@@ -102,7 +73,6 @@ export function App() {
   /** Focused sight-reading started from "Things to work on". */
   const [focus, setFocus] = useState<Focus | null>(null);
   const [portraitOk, setPortraitOk] = useState(false);
-  const midi = useMidiStatus();
   const [fullscreen, toggleFullscreen] = useFullscreen();
   const [collapsed, toggleSidebar] = useSidebar();
 
@@ -141,64 +111,19 @@ export function App() {
     hub.soundForVirtual = data.settings.onscreenSound;
   }, [data.settings.midiInput, data.settings.onscreenSound]);
 
-  const midiLabel = !midi.supported
-    ? 'No Web MIDI'
-    : !midi.enabled
-      ? 'Connect MIDI'
-      : midi.devices.length
-        ? midi.devices.map((d) => d.name).join(', ')
-        : 'No MIDI device';
-  const midiOk = midi.enabled && midi.devices.length > 0;
-  const due = todayPlan(data).total;
-  const weak = weakSpots(data);
-  const toWorkOn = new Set([...weak.sight, ...weak.leeches].map((s) => s.card.id)).size;
   const playing = PLAY_TABS.includes(tab);
 
   return (
     <div className="app">
-      <nav className={`sidebar ${collapsed ? 'collapsed' : ''}`} aria-label="Main">
-        <div className="sidebar-head">
-          <button className="icon-btn" onClick={toggleSidebar} title={collapsed ? 'Expand menu' : 'Collapse menu'} aria-label={collapsed ? 'Expand menu' : 'Collapse menu'}>
-            {collapsed ? <PanelLeftOpen size={20} /> : <PanelLeftClose size={20} />}
-          </button>
-          <span className="brand">
-            <span className="clef">𝄞</span>PianoSRS
-          </span>
-        </div>
-        {NAV.map(({ tab: t, icon: Icon }, i) => (
-          <div key={t}>
-            {i === 4 && <div className="nav-sep" />}
-            <button
-              className={`nav-item ${t === tab ? 'active' : ''}`}
-              // Drop focus after a click so playing on the computer keyboard doesn't leave a focus ring here.
-              onClick={(e) => {
-                setTab(t);
-                e.currentTarget.blur();
-              }} title={LABEL[t] ?? t} aria-current={t === tab ? 'page' : undefined}>
-              <Icon size={19} />
-              <span className="nav-label">{LABEL[t] ?? t}</span>
-              {t === 'Review' && due > 0 && <span className="nav-badge">{due}</span>}
-              {t === 'Work on' && toWorkOn > 0 && <span className="nav-badge soft">{toWorkOn}</span>}
-            </button>
-          </div>
-        ))}
-        <div className="side-foot">
-          <button
-            className={`nav-item midi-status ${midiOk ? 'ok' : ''}`}
-            onClick={() => (midi.enabled ? setTab('Settings') : hub.enableMidi())}
-            title={midi.error ?? midiLabel}
-          >
-            {collapsed ? <PianoIcon size={19} /> : <span className="dot" />}
-            <span className="nav-label side-foot-label">{midiLabel}</span>
-          </button>
-          {document.fullscreenEnabled && (
-            <button className="nav-item" onClick={toggleFullscreen} title={fullscreen ? 'Exit full screen' : 'Full screen'}>
-              {fullscreen ? <Minimize size={19} /> : <Maximize size={19} />}
-              <span className="nav-label">{fullscreen ? 'Exit full screen' : 'Full screen'}</span>
-            </button>
-          )}
-        </div>
-      </nav>
+      <Sidebar
+        data={data}
+        tab={tab}
+        onNavigate={setTab}
+        collapsed={collapsed}
+        onToggleCollapsed={toggleSidebar}
+        fullscreen={fullscreen}
+        onToggleFullscreen={toggleFullscreen}
+      />
 
       <main className={playing ? 'play' : 'page'}>
         {tab === 'Home' && <Home data={data} update={update} onNavigate={setTab} />}

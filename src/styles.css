@@ -1983,3 +1983,21 @@ button.bar-cell:hover {
   align-self: end;
   padding-bottom: 6px;
 }
+.small-seg button {
+  padding: 8px 10px;
+}
+.chat-steps {
+  margin: 0;
+  padding-left: 1.3em;
+  display: grid;
+  gap: 6px;
+  color: var(--ink-2);
+}
+.chat-steps button svg,
+.chat-steps a svg {
+  vertical-align: -2px;
+}
+.reply-box {
+  width: 100%;
+  font: 0.82rem var(--mono);
+}

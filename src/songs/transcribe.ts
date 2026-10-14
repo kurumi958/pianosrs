@@ -188,3 +188,54 @@ export async function transcribePage({ apiKey, image, page, pages, context, sign
 
 /** Rough cost of one page, for the note under the button: a page image in, several thousand tokens of reading out. */
 export const COST_PER_PAGE = '$0.10–0.40';
+
+/**
+ * Instructions to paste into a Claude chat (claude.ai or the Claude app) with the PDF attached, for transcribing
+ * on a Claude plan instead of with an API key. The reply is pasted back and read by parseChatReply.
+ */
+export function chatPrompt(pages: number): string {
+  return `${SYSTEM}
+
+The attached PDF has ${pages} page${pages === 1 ? '' : 's'}. Transcribe every bar of the piano music on every page, in order, as ONE JSON object with these fields:
+- "title", "composer": as printed (empty strings if not shown)
+- "key": the key, written like C, G, Bb, F#, or for minor keys Am, F#m, Ebm
+- "meter": the time signature, like "3/4"
+- "tempo": quarter notes per minute (an integer; estimate from the tempo word if there's no metronome mark)
+- "pickup": true if the piece starts with an incomplete bar
+- "bars": an array with one object per bar, {"rh": "...", "lh": "...", "rh2": "...", "lh2": "..."}
+- "notes": bars you couldn't read with confidence
+
+Skip pages without piano music (covers, notes). Reply with only the JSON, in a \`\`\`json code block.`;
+}
+
+/** What to paste back when some bars don't add up. */
+export function chatFixPrompt(problems: BarProblem[]): string {
+  return `These bars don't add up (bar numbers count from 1):\n${problems
+    .filter((p) => p.bar >= 0)
+    .map((p) => `- Bar ${p.bar + 1}: ${p.message}`)
+    .join('\n')}\nLook at those bars in the PDF again and send the whole JSON again, corrected, in a \`\`\`json code block.`;
+}
+
+/** Read the JSON out of a pasted Claude reply (with or without a code block). Throws a readable error. */
+export function parseChatReply(reply: string): Omit<PageTranscript, 'problems'> {
+  const fenced = /```(?:json)?\s*([\s\S]*?)```/.exec(reply)?.[1];
+  const text = fenced ?? reply.slice(reply.indexOf('{'), reply.lastIndexOf('}') + 1);
+  let data: Partial<Omit<PageTranscript, 'problems'>>;
+  try {
+    data = JSON.parse(text);
+  } catch {
+    throw new Error("Couldn't find the JSON in that reply. Paste Claude's whole answer, including the ```json block.");
+  }
+  if (!Array.isArray(data.bars) || !data.bars.length) throw new Error('The reply has no bars in it.');
+  const keys = new Set(KEYS);
+  return {
+    title: data.title ?? '',
+    composer: data.composer ?? '',
+    key: data.key && keys.has(data.key) ? data.key : 'C',
+    meter: data.meter ?? '4/4',
+    tempo: Number(data.tempo) || 80,
+    pickup: !!data.pickup,
+    bars: data.bars.map((b) => ({ rh: b.rh ?? '', lh: b.lh ?? '', rh2: b.rh2 ?? '', lh2: b.lh2 ?? '' })),
+    notes: data.notes ?? '',
+  };
+}

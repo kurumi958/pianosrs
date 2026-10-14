@@ -1,11 +1,20 @@
-import { ArrowLeft, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react';
+import { ArrowLeft, ChevronLeft, ChevronRight, ClipboardCopy, ExternalLink, Sparkles } from 'lucide-react';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { PDFDocumentProxy } from 'pdfjs-dist';
 import { keyLabel, MAJOR_KEYS, MINOR_KEYS } from '../music/notes';
 import { barProblems, compileSong, type SongSource } from '../songs/dsl';
 import { importSong, type Song, updateTranscription } from '../songs/library';
 import { openPdf, renderPage } from '../songs/pdf';
-import { COST_PER_PAGE, getApiKey, type PageTranscript, setApiKey, transcribePage } from '../songs/transcribe';
+import {
+  chatFixPrompt,
+  chatPrompt,
+  COST_PER_PAGE,
+  getApiKey,
+  type PageTranscript,
+  parseChatReply,
+  setApiKey,
+  transcribePage,
+} from '../songs/transcribe';
 import { ScoreView } from './ScoreView';
 
 interface Props {
@@ -26,7 +35,20 @@ const VOICES = [
 ] as const;
 type VoiceKey = (typeof VOICES)[number]['key'];
 
-const EMPTY: SongSource = { id: 'pdf', title: '', composer: '', level: 1, about: '', key: 'C', meter: '4/4', tempo: 80, rh: '', lh: '', rh2: '', lh2: '' };
+const EMPTY: SongSource = {
+  id: 'pdf',
+  title: '',
+  composer: '',
+  level: 1,
+  about: '',
+  key: 'C',
+  meter: '4/4',
+  tempo: 80,
+  rh: '',
+  lh: '',
+  rh2: '',
+  lh2: '',
+};
 
 /** One bar per line, so bar numbers in problems match line numbers. */
 const joinBars = (bars: string[]) => bars.join(' |\n');
@@ -40,7 +62,12 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
   const [doc, setDoc] = useState<PDFDocumentProxy | null>(null);
   const [page, setPage] = useState(1);
   const [pageImage, setPageImage] = useState<string | null>(null);
-  const [src, setSrc] = useState<SongSource>(song?.transcription ?? { ...EMPTY, title: file?.name.replace(/\.pdf$/i, '') ?? '' });
+  const [src, setSrc] = useState<SongSource>(
+    song?.transcription ?? {
+      ...EMPTY,
+      title: file?.name.replace(/\.pdf$/i, '') ?? '',
+    },
+  );
   const [apiKey, setKey] = useState(getApiKey);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string[]>([]);
@@ -70,7 +97,10 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
   useEffect(() => () => abort.current?.abort(), []);
 
   // Live check and preview, a moment after typing stops.
-  const [checked, setChecked] = useState<{ problems: ReturnType<typeof barProblems>; xml: string | null }>({ problems: [], xml: null });
+  const [checked, setChecked] = useState<{
+    problems: ReturnType<typeof barProblems>;
+    xml: string | null;
+  }>({ problems: [], xml: null });
   useEffect(() => {
     const t = window.setTimeout(() => {
       const problems = barProblems(src);
@@ -79,7 +109,10 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
         try {
           xml = compileSong(src).xml;
         } catch (e) {
-          problems.push({ bar: -1, message: e instanceof Error ? e.message : String(e) });
+          problems.push({
+            bar: -1,
+            message: e instanceof Error ? e.message : String(e),
+          });
         }
       }
       setChecked({ problems, xml });
@@ -107,11 +140,23 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
     try {
       const results: PageTranscript[] = [];
       const read = async (p: number, context?: { key: string; meter: string; title: string }) =>
-        transcribePage({ apiKey, image: await renderPage(doc, p), page: p, pages, context, signal: ctl.signal, onStatus: (s) => show(p - 1, s) });
+        transcribePage({
+          apiKey,
+          image: await renderPage(doc, p),
+          page: p,
+          pages,
+          context,
+          signal: ctl.signal,
+          onStatus: (s) => show(p - 1, s),
+        });
       // The first page sets the key, time and title; the rest are read three at a time with that in hand.
       results[0] = await read(1);
       show(0, `Page 1: ${results[0].bars.length} bars`);
-      const context = { key: results[0].key, meter: results[0].meter, title: results[0].title || src.title };
+      const context = {
+        key: results[0].key,
+        meter: results[0].meter,
+        title: results[0].title || src.title,
+      };
       const rest = Array.from({ length: pages - 1 }, (_, i) => i + 2);
       for (let i = 0; i < rest.length; i += 3) {
         await Promise.all(
@@ -121,6 +166,17 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
           }),
         );
       }
+      apply(results);
+    } catch (e) {
+      if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  /** Put a transcription (one result per page, or one for the whole PDF) into the editor. */
+  const apply = (results: Omit<PageTranscript, 'problems'>[]) => {
+    {
       const bars = results.flatMap((r) => r.bars);
       const first = results[0];
       setSrc((s) => ({
@@ -143,12 +199,33 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
         offset += r.bars.length;
       });
       const changes = new Set(results.map((r) => `${r.key} ${r.meter}`));
-      if (changes.size > 1) notes.push('The key or time signature seems to change between pages; songs use one throughout, so check those bars.');
+      if (changes.size > 1)
+        notes.push('The key or time signature seems to change between pages; songs use one throughout, so check those bars.');
       setReadNotes(notes);
+    }
+  };
+
+  // Transcribing in a Claude chat (on a Claude plan, no API key): copy the instructions, paste the reply back.
+  const [via, setVia] = useState<'chat' | 'api'>(getApiKey() ? 'api' : 'chat');
+  const [reply, setReply] = useState('');
+  const [copied, setCopied] = useState<'prompt' | 'fix' | null>(null);
+  const copy = async (what: 'prompt' | 'fix') => {
+    const text = what === 'prompt' ? chatPrompt(doc?.numPages ?? 1) : chatFixPrompt(checked.problems);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(what);
+      window.setTimeout(() => setCopied(null), 2500);
+    } catch {
+      setError("Couldn't copy to the clipboard; your browser may need permission.");
+    }
+  };
+  const useReply = () => {
+    setError(null);
+    try {
+      apply([parseChatReply(reply)]);
+      setReply('');
     } catch (e) {
-      if (!ctl.signal.aborted) setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setBusy(false);
+      setError(e instanceof Error ? e.message : String(e));
     }
   };
 
@@ -158,7 +235,12 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
     setError(null);
     try {
       const { xml } = compileSong(src);
-      const saved = song ? await updateTranscription(song.id, xml, src) : await importSong(xml, file!.name, { transcription: src, pdf: file!.bytes });
+      const saved = song
+        ? await updateTranscription(song.id, xml, src)
+        : await importSong(xml, file!.name, {
+            transcription: src,
+            pdf: file!.bytes,
+          });
       onDone(saved.id);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -175,8 +257,8 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
       <header className="page-head">
         <h2>{song ? `Edit “${song.title}”` : 'Transcribe a PDF'}</h2>
         <p>
-          A PDF is a picture of the music, so it has to be read into notes first. Claude can read the pages for you; then check the
-          result against the page bar by bar and fix anything it got wrong. You can also type the notes in yourself.
+          A PDF is a picture of the music, so it has to be read into notes first. Claude can read the pages for you; then check the result
+          against the page bar by bar and fix anything it got wrong. You can also type the notes in yourself.
         </p>
       </header>
 
@@ -200,7 +282,9 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
                   </span>
                 )}
               </div>
-              <div className="pdf-page">{pageImage ? <img src={pageImage} alt={`Page ${page} of the PDF`} /> : <p className="muted">Opening the PDF…</p>}</div>
+              <div className="pdf-page">
+                {pageImage ? <img src={pageImage} alt={`Page ${page} of the PDF`} /> : <p className="muted">Opening the PDF…</p>}
+              </div>
             </>
           ) : (
             <p className="muted">The original PDF wasn't kept for this song.</p>
@@ -213,38 +297,92 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
               <h3>
                 <Sparkles size={17} /> Read it with Claude
               </h3>
-              <p className="muted small">
-                Each page is sent to Claude ({pages || '…'} page{pages === 1 ? '' : 's'}, roughly {COST_PER_PAGE} a page) using your Anthropic API key,
-                which stays in this browser. Bars that don't add up are sent back to be read again. Expect to fix a few notes, more on
-                dense or handwritten scores.
-              </p>
-              <label className="field">
-                Anthropic API key
-                <input
-                  id="tx-key"
-                  type="password"
-                  autoComplete="off"
-                  placeholder="sk-ant-…"
-                  value={apiKey}
-                  onChange={(e) => setKey(e.target.value)}
-                />
-              </label>
-              <div className="row">
-                <button className="primary" disabled={!doc || !apiKey || busy} onClick={transcribe}>
-                  {busy ? 'Reading…' : src.rh.trim() ? 'Read it again' : `Read ${pages || ''} page${pages === 1 ? '' : 's'}`}
+              <div className="segmented small-seg" role="radiogroup" aria-label="How to use Claude">
+                <button role="radio" aria-checked={via === 'chat'} className={via === 'chat' ? 'on' : ''} onClick={() => setVia('chat')}>
+                  <b>With your Claude plan</b>
+                  <small>In a Claude chat; no API key, no extra cost</small>
                 </button>
-                {busy && (
-                  <button className="small" onClick={() => abort.current?.abort()}>
-                    Stop
-                  </button>
-                )}
+                <button role="radio" aria-checked={via === 'api'} className={via === 'api' ? 'on' : ''} onClick={() => setVia('api')}>
+                  <b>With an API key</b>
+                  <small>Automatic; about {COST_PER_PAGE} a page</small>
+                </button>
               </div>
-              {status.length > 0 && (
-                <ul className="tx-status small">
-                  {status.map((s, i) => (
-                    <li key={i}>{s}</li>
-                  ))}
-                </ul>
+              {via === 'chat' ? (
+                <>
+                  <ol className="chat-steps small">
+                    <li>
+                      <button className="small" onClick={() => copy('prompt')}>
+                        <ClipboardCopy size={14} /> {copied === 'prompt' ? 'Copied' : 'Copy the instructions'}
+                      </button>
+                    </li>
+                    <li>
+                      <a href="https://claude.ai/new" target="_blank" rel="noreferrer">
+                        Open a new Claude chat <ExternalLink size={12} />
+                      </a>
+                      , choose the most capable model (Opus reads music far more accurately), attach this PDF and paste the instructions.
+                    </li>
+                    <li>Copy Claude's whole reply and paste it here:</li>
+                  </ol>
+                  <textarea
+                    id="tx-reply"
+                    className="text-input reply-box"
+                    rows={4}
+                    placeholder="Paste Claude's reply (the JSON block)…"
+                    value={reply}
+                    onChange={(e) => setReply(e.target.value)}
+                  />
+                  <div className="row">
+                    <button className="primary" disabled={!reply.trim()} onClick={useReply}>
+                      Use this reply
+                    </button>
+                    {checked.problems.some((p) => p.bar >= 0) && (
+                      <button
+                        className="small"
+                        onClick={() => copy('fix')}
+                        title="Send this back to the same chat to have those bars read again"
+                      >
+                        <ClipboardCopy size={14} /> {copied === 'fix' ? 'Copied' : 'Copy a fix request for the bars that don’t add up'}
+                      </button>
+                    )}
+                  </div>
+                  <p className="muted small">This uses your Claude plan's usage limits; a page or two of music is a modest chat.</p>
+                </>
+              ) : (
+                <>
+                  <p className="muted small">
+                    Each page is sent to Claude ({pages || '…'} page
+                    {pages === 1 ? '' : 's'}, roughly {COST_PER_PAGE} a page) using your Anthropic API key, which stays in this browser.
+                    Bars that don't add up are sent back to be read again. Expect to fix a few notes, more on dense or handwritten scores.
+                  </p>
+                  <label className="field">
+                    Anthropic API key
+                    <input
+                      id="tx-key"
+                      type="password"
+                      autoComplete="off"
+                      placeholder="sk-ant-…"
+                      value={apiKey}
+                      onChange={(e) => setKey(e.target.value)}
+                    />
+                  </label>
+                  <div className="row">
+                    <button className="primary" disabled={!doc || !apiKey || busy} onClick={transcribe}>
+                      {busy ? 'Reading…' : src.rh.trim() ? 'Read it again' : `Read ${pages || ''} page${pages === 1 ? '' : 's'}`}
+                    </button>
+                    {busy && (
+                      <button className="small" onClick={() => abort.current?.abort()}>
+                        Stop
+                      </button>
+                    )}
+                  </div>
+                  {status.length > 0 && (
+                    <ul className="tx-status small">
+                      {status.map((s, i) => (
+                        <li key={i}>{s}</li>
+                      ))}
+                    </ul>
+                  )}
+                </>
               )}
             </section>
           )}
@@ -285,7 +423,14 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
               </label>
               <label className="field">
                 Tempo (♩ per minute)
-                <input id="tx-tempo" type="number" min={20} max={240} value={src.tempo} onChange={(e) => set('tempo', Number(e.target.value) || 80)} />
+                <input
+                  id="tx-tempo"
+                  type="number"
+                  min={20}
+                  max={240}
+                  value={src.tempo}
+                  onChange={(e) => set('tempo', Number(e.target.value) || 80)}
+                />
               </label>
               <label className="check">
                 <input id="tx-pickup" type="checkbox" checked={!!src.pickup} onChange={(e) => set('pickup', e.target.checked)} />
@@ -305,10 +450,11 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
           <summary>How notes are written</summary>
           <p>
             Pitch, then length: <code>E4q</code> is a quarter-note E above middle C (C4). Lengths: <code>w h q e s</code> (whole to
-            sixteenth), <code>.</code> for dotted (<code>q.</code>). Chords: <code>C4+E4+G4h</code>. Rests: <code>rq</code>. Sharps and flats:
+            sixteenth), <code>.</code> for dotted (<code>q.</code>). Chords: <code>C4+E4+G4h</code>. Rests: <code>rq</code>. Sharps and
+            flats:
             <code>F#4</code>, <code>Bb3</code>, always as the note sounds, key signature included. Ties: <code>G4h~ G4q</code>. Triplets:{' '}
-            <code>3[C5e D5e E5e]</code>. Bars are separated by <code>|</code>, and every voice must fill each bar. A second voice on a
-            staff (a held note under moving ones) goes in the second-voice boxes; leave a bar empty where it isn't needed.
+            <code>3[C5e D5e E5e]</code>. Bars are separated by <code>|</code>, and every voice must fill each bar. A second voice on a staff
+            (a held note under moving ones) goes in the second-voice boxes; leave a bar empty where it isn't needed.
           </p>
         </details>
         <div className="tx-voices">
@@ -339,7 +485,8 @@ export function PdfTranscriber({ file, song, songPdf, onDone, onCancel }: Props)
         {checked.problems.length > 0 ? (
           <div className="tx-problems">
             <b className="small">
-              {checked.problems.length} problem{checked.problems.length === 1 ? '' : 's'} to fix before it can be saved:
+              {checked.problems.length} problem
+              {checked.problems.length === 1 ? '' : 's'} to fix before it can be saved:
             </b>
             <ul className="small">
               {checked.problems.slice(0, 30).map((p, i) => (

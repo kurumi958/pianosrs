@@ -56,11 +56,16 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   you up. Repeats are read once, as written; grace notes aren't judged.
 - **Songs from PDFs**: a PDF is a picture of the music, so it's transcribed first. *Import MusicXML or PDF* opens a PDF in an
   editor: the page on one side, the song's details and its notes (in the app's compact notation, one bar per line) on the
-  other, and the engraved result underneath. *Read it with Claude* sends each page image to Claude (`claude-opus-5-5`,
-  through the Anthropic API with your own key, which stays in the browser; roughly $0.10–0.40 a page), which writes the
-  notes; every bar is checked to add up, and bars that don't go back to Claude to be read again. You then compare the
-  engraving with the page and fix what was misread, or type the notes in yourself without a key. The PDF is kept with the
-  song, so *Check or correct the transcription* reopens it side by side. A song keeps one key and time signature throughout.
+  other, and the engraved result underneath. Claude reads the pages, two ways:
+  - *With your Claude plan* (the default; no API key, no per-page cost): copy the app's instructions, paste them into a Claude
+    chat with the PDF attached, and paste the reply back. If any bars don't add up, the app writes a fix request to send to
+    the same chat.
+  - *With an API key*: each page goes to Claude (`claude-opus-5-5`) automatically, with your own key, which stays in the
+    browser (roughly $0.10–0.40 a page); bars that don't add up are sent back to be read again.
+  Either way you compare the engraving with the page and fix what was misread, or type the notes in yourself. The PDF is kept
+  with the song, so *Check or correct the transcription* reopens it side by side. A song keeps one key and time signature
+  throughout. In a test on a one-page Bach minuet (199 notes), Opus read every note right on both runs, Sonnet 96–98%, and
+  Haiku 80–89% (whole stretches an octave off); on a dense Ravel page Haiku gave up partway. So use the most capable model.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
   the middle, and the whole 88-key keyboard is docked along the bottom at full width, so keys never move. The full-screen

@@ -1,6 +1,6 @@
 import type { Card, StaffKind } from '../srs/deck';
 import type { CardState } from '../srs/scheduler';
-import type { Clef, Pitch } from './notes';
+import { type Clef, diatonicIndex, type Pitch } from './notes';
 
 /** How much a card should be favoured in sight-reading practice: weak and recently learned cards come up more. */
 export function practiceWeight(state: CardState | undefined): number {
@@ -11,12 +11,27 @@ export function practiceWeight(state: CardState | undefined): number {
   return w;
 }
 
-/** Returns a function that draws cards by weight, never giving the same card twice in a row (when it can avoid it). */
-export function weightedSampler(pool: Card[], states: Record<string, CardState>, rnd: () => number): () => Card {
+/** Average staff position of a card's notes, in diatonic steps. */
+const height = (c: Card) => c.notes.reduce((a, p) => a + diatonicIndex(p), 0) / c.notes.length;
+
+/** How likely a melody is to move this many staff steps: steps and skips are common, big leaps rare. */
+export function stepWeight(steps: number): number {
+  return Math.exp(-Math.max(0, steps - 1) / 2);
+}
+
+/**
+ * Returns a function that draws cards by weight, never giving the same card twice in a row (when it can avoid it).
+ * With `melodic`, each draw also favours cards close to the previous one, so lines move like real melodies.
+ */
+export function weightedSampler(pool: Card[], states: Record<string, CardState>, rnd: () => number, melodic = false): () => Card {
   const weights = pool.map((c) => practiceWeight(states[c.id]));
   let prev: Card | undefined;
   return () => {
-    const ws = pool.map((c, j) => (pool.length > 1 && c === prev ? 0 : weights[j]));
+    const ws = pool.map((c, j) => {
+      if (!prev) return weights[j];
+      if (pool.length > 1 && c === prev) return 0;
+      return melodic ? weights[j] * stepWeight(Math.abs(height(c) - height(prev))) : weights[j];
+    });
     const total = ws.reduce((a, b) => a + b, 0);
     let r = rnd() * total;
     let k = 0;
@@ -32,9 +47,10 @@ export function generatePhrase(
   states: Record<string, CardState>,
   length: number,
   rnd: () => number = Math.random,
+  melodic = false,
 ): Card[] {
   if (!pool.length) return [];
-  const next = weightedSampler(pool, states, rnd);
+  const next = weightedSampler(pool, states, rnd, melodic);
   return Array.from({ length }, next);
 }
 
@@ -128,10 +144,11 @@ export function grandStaffPhrase(
   measureCount: number,
   style: GrandStyle,
   rnd: () => number = Math.random,
+  melodic = false,
 ): Phrase {
-  const rh = weightedSampler(pools.rh, states, rnd);
-  const lh = weightedSampler(pools.lh, states, rnd);
-  const both = pools.both.length ? weightedSampler(pools.both, states, rnd) : null;
+  const rh = weightedSampler(pools.rh, states, rnd, melodic);
+  const lh = weightedSampler(pools.lh, states, rnd, melodic);
+  const both = pools.both.length ? weightedSampler(pools.both, states, rnd, melodic) : null;
   const mixed: [Exclude<GrandStyle, 'mixed'>, number][] = [
     ['melody', 3],
     ['bass-melody', 2],

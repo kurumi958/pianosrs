@@ -71,7 +71,7 @@ export function App() {
         ))}
       </nav>
       <main>
-        {tab === 'Review' && <Review data={data} update={update} />}
+        {tab === 'Review' && <Review data={data} update={update} onChooseDecks={() => setTab('Decks')} />}
         {tab === 'Sight-read' && <SightRead data={data} update={update} />}
         {tab === 'Decks' && <Decks data={data} update={update} />}
         {tab === 'Stats' && <Stats data={data} />}

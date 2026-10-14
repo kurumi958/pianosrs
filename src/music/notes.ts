@@ -64,3 +64,18 @@ export function naturalRange(from: string, to: string): Pitch[] {
   for (let i = a; i <= b; i++) out.push(fromDiatonicIndex(i));
   return out;
 }
+
+/** Accidentals implied by each supported key signature. */
+export const KEY_SIGNATURES: Record<string, Partial<Record<Letter, Accidental>>> = {
+  C: {},
+  G: { F: '#' },
+  D: { F: '#', C: '#' },
+  F: { B: 'b' },
+};
+
+/** What accidental must be printed for this pitch in a key: null if the key signature already implies it. */
+export function accidentalInKey(p: Pitch, key = 'C'): '#' | 'b' | 'n' | null {
+  const implied = KEY_SIGNATURES[key]?.[p.letter] ?? '';
+  if (p.acc === implied) return null;
+  return p.acc === '' ? 'n' : p.acc;
+}

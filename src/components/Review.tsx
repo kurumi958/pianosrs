@@ -2,7 +2,8 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AttemptMatcher } from '../midi/matcher';
 import { midiName, toMidi } from '../music/notes';
 import { COLORS } from '../music/notation';
-import { type Card, cardLabel, DECKS } from '../srs/deck';
+import { type Card, cardLabel, COURSE_DECKS as COURSES } from '../srs/deck';
+import { courseProgress, studyCards } from '../srs/study';
 import { autoGrade } from '../srs/grading';
 import { type CardState, formatDelay, type Grade, GRADE_LABELS, schedule } from '../srs/scheduler';
 import { countQueue, pickNext, type QueuePick } from '../srs/session';
@@ -14,6 +15,7 @@ import { Piano } from './Piano';
 interface Props {
   data: AppData;
   update: (fn: (d: AppData) => void) => void;
+  onChooseDecks: () => void;
 }
 
 type Phase = 'question' | 'correct' | 'wrong';
@@ -25,7 +27,7 @@ interface Undo {
   day: string;
 }
 
-export function Review({ data, update }: Props) {
+export function Review({ data, update, onChooseDecks }: Props) {
   const held = useHeldNotes();
   const [pick, setPick] = useState<QueuePick | null>(null);
   const [phase, setPhase] = useState<Phase>('question');
@@ -39,11 +41,14 @@ export function Review({ data, update }: Props) {
   const advanceTimer = useRef<number | undefined>(undefined);
   const lastCard = useRef<string | undefined>(undefined);
 
-  const deckKey = data.settings.enabledDecks.join(',');
-  const cards = useMemo(
-    () => DECKS.filter((d) => deckKey.split(',').includes(d.id)).flatMap((d) => d.cards),
-    [deckKey],
-  );
+  // Course units open as you learn, so the card list is derived from progress; keep its identity stable between renders.
+  const available = studyCards({ enabledDecks: data.settings.enabledDecks, courses: data.courses, states: data.cards });
+  const cardsKey = available.map((c) => c.id).join(',');
+  const cards = useMemo(() => available, [cardsKey]);
+  const activeCourses = COURSES.filter((c) => data.settings.enabledDecks.includes(c.id)).map((c) => {
+    const { open } = courseProgress(c, data.cards, data.courses[c.id]);
+    return c.units![open].title;
+  });
   const today = dayKey(Date.now());
   const newRemaining = data.settings.newPerDay - (data.newByDay[today] ?? 0);
   const queueInput = { cards, states: data.cards, now: Date.now(), newRemaining, lastCardId: lastCard.current };
@@ -149,7 +154,26 @@ export function Review({ data, update }: Props) {
   };
 
   if (!cards.length) {
-    return <div className="panel empty">No decks enabled. Turn some on in the <b>Decks</b> tab.</div>;
+    const startCourse = () =>
+      update((d) => {
+        d.settings.enabledDecks = [...d.settings.enabledDecks, COURSES[0].id];
+        d.courses[COURSES[0].id] ??= { start: 0, unlocked: 0 };
+      });
+    return (
+      <div className="panel empty onboarding">
+        <h2>What would you like to learn?</h2>
+        <div className="choices">
+          <button className="choice" onClick={startCourse}>
+            <b>I'm new to reading music</b>
+            <span className="muted">Start the adult beginner course from your first notes on the staff.</span>
+          </button>
+          <button className="choice" onClick={onChooseDecks}>
+            <b>I can already read some</b>
+            <span className="muted">Join the course at a later unit, or pick topic decks like ledger lines or accidentals.</span>
+          </button>
+        </div>
+      </div>
+    );
   }
 
   if (!pick) {
@@ -181,6 +205,11 @@ export function Review({ data, update }: Props) {
         <span className="c-learn" title="Learning">{counts.learning}</span>
         <span className="c-review" title="Review">{counts.review}</span>
         {pick.isNew && <span className="badge">new card</span>}
+        {activeCourses.map((t) => (
+          <span key={t} className="muted small course-pos">
+            {t}
+          </span>
+        ))}
         <span className="spacer" />
         {undo && phase === 'question' && <button className="small" onClick={doUndo}>Undo</button>}
       </div>

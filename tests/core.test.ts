@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { midiName, parsePitch, toMidi, vexKey } from '../src/music/notes';
+import { accidentalInKey, midiName, parsePitch, toMidi, vexKey } from '../src/music/notes';
+import { courseProgress, knownCards, studyCards } from '../src/srs/study';
+import type { CardState } from '../src/srs/scheduler';
 import { DEFAULT_SCHEDULER as cfg, newCardState, schedule } from '../src/srs/scheduler';
 import { ALL_CARDS, CARD_BY_ID, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
@@ -16,6 +18,8 @@ import { autoGrade } from '../src/srs/grading';
 import { mulberry32 } from '../src/srs/deck';
 
 const MIN = 60_000;
+const COURSES = DECKS.filter((d) => d.kind === 'course');
+const deckCards = (id: string) => DECKS.find((d) => d.id === id)!.cards;
 const DAY = 86_400_000;
 
 describe('notes', () => {
@@ -69,8 +73,8 @@ describe('decks', () => {
     expect(CARD_BY_ID.size).toBe(ALL_CARDS.length);
   });
   it('starts each staff deck with its landmark notes', () => {
-    expect(DECKS[0].cards[0].id).toBe('treble:C4');
-    expect(DECKS[1].cards[0].id).toBe('bass:C4');
+    expect(deckCards('treble-staff')[0].id).toBe('treble:C4');
+    expect(deckCards('bass-staff')[0].id).toBe('bass:C4');
   });
   it('keeps chords sorted and inside their range', () => {
     for (const c of ALL_CARDS) {
@@ -109,7 +113,7 @@ describe('grand staff decks', () => {
 });
 
 describe('session queue', () => {
-  const cards = DECKS[0].cards.slice(0, 3);
+  const cards = deckCards('treble-staff').slice(0, 3);
   const now = 1_000_000_000_000;
   it('introduces new cards in order up to the daily limit', () => {
     expect(pickNext({ cards, states: {}, now, newRemaining: 1 })?.card.id).toBe('treble:C4');
@@ -143,7 +147,7 @@ describe('matcher', () => {
 
 describe('phrases', () => {
   it('generates the requested length without immediate repeats', () => {
-    const p = generatePhrase(DECKS[0].cards, {}, 50, mulberry32(7));
+    const p = generatePhrase(deckCards('treble-staff'), {}, 50, mulberry32(7));
     expect(p).toHaveLength(50);
     for (let i = 1; i < p.length; i++) expect(p[i]).not.toBe(p[i - 1]);
   });
@@ -193,6 +197,66 @@ describe('rhythmic phrases', () => {
       expect(m.bass.some((n) => n.pitches.length)).toBe(true);
       expect(phraseEvents({ staff: 'grand', measures: [m] })).toHaveLength(4);
     }
+  });
+});
+
+describe('key signatures', () => {
+  it('only prints accidentals the key does not imply', () => {
+    expect(accidentalInKey(parsePitch('F#4'), 'G')).toBeNull();
+    expect(accidentalInKey(parsePitch('F4'), 'G')).toBe('n');
+    expect(accidentalInKey(parsePitch('F#4'), 'C')).toBe('#');
+    expect(accidentalInKey(parsePitch('C4'), 'G')).toBeNull();
+  });
+  it('gives keyed cards their own ids', () => {
+    expect(CARD_BY_ID.get('grand[G]:F#4|')!.key).toBe('G');
+  });
+});
+
+describe('beginner course', () => {
+  const course = COURSES[0];
+  const units = course.units!;
+  const learn = (ids: string[]): Record<string, CardState> =>
+    Object.fromEntries(ids.map((id) => [id, { ...newCardState(id), status: 'review', interval: 3, due: Date.now() + DAY }]));
+
+  it('shares cards with topic decks', () => {
+    expect(units[0].cards[0]).toBe(CARD_BY_ID.get('grand:C4|'));
+    expect(deckCards('grand-staff')).toContain(CARD_BY_ID.get('grand:C4|'));
+  });
+  it('has no duplicate cards across units', () => {
+    const ids = course.cards.map((c) => c.id);
+    expect(new Set(ids).size).toBe(ids.length);
+  });
+  it('opens the next unit once most of the current one is learned', () => {
+    expect(courseProgress(course, {}).open).toBe(0);
+    const u0 = units[0].cards.map((c) => c.id);
+    const most = learn(u0.slice(0, -1));
+    // Every card must at least be seen, so one card still new keeps the unit open.
+    expect(courseProgress(course, most).open).toBe(0);
+    most[u0.at(-1)!] = { ...newCardState(u0.at(-1)!), status: 'learning', due: 0 };
+    expect(courseProgress(course, most).open).toBe(1); // 6 of 7 learned ≥ 80%
+  });
+  it('lets you start later and open units by hand', () => {
+    const p = courseProgress(course, {}, { start: 3, unlocked: 5 });
+    expect(p.open).toBe(5);
+    expect(p.units[0].status).toBe('skipped');
+    expect(p.units[4].status).toBe('open');
+    expect(p.units[6].status).toBe('locked');
+  });
+  it('studies only open units, and treats skipped units as known for sight-reading', () => {
+    const input = { enabledDecks: [course.id], courses: { [course.id]: { start: 2, unlocked: 2 } }, states: {} };
+    expect(studyCards(input)).toEqual(units[2].cards);
+    expect(knownCards(input)).toEqual([...units[0].cards, ...units[1].cards]);
+  });
+});
+
+describe('melodic phrases', () => {
+  it('move by smaller steps than random ones', () => {
+    const pool = deckCards('treble-staff');
+    const avgLeap = (ps: typeof pool) =>
+      ps.slice(1).reduce((a, c, i) => a + Math.abs(toMidi(c.notes[0]) - toMidi(ps[i].notes[0])), 0) / (ps.length - 1);
+    const random = generatePhrase(pool, {}, 400, mulberry32(5));
+    const melodic = generatePhrase(pool, {}, 400, mulberry32(5), true);
+    expect(avgLeap(melodic)).toBeLessThan(avgLeap(random) * 0.6);
   });
 });
 

@@ -1,5 +1,6 @@
 import type { GrandStyle } from './music/phrase';
 import type { CardState, Grade } from './srs/scheduler';
+import type { CourseState } from './srs/study';
 
 /** "alternate" rotates through treble, bass and grand staff phrases. */
 export type SightClef = 'treble' | 'bass' | 'grand' | 'alternate';
@@ -15,6 +16,8 @@ export interface Settings {
   sightClef: SightClef;
   /** Bar patterns used for two-handed grand-staff phrases. */
   grandStyle: GrandStyle;
+  /** Phrases move mostly by step and skip, like real melodies, instead of leaping anywhere. */
+  melodic: boolean;
   /** "all" listens to every connected MIDI input. */
   midiInput: string;
   /** Play a tone for on-screen / computer-keyboard input (a real piano makes its own sound). */
@@ -22,7 +25,8 @@ export interface Settings {
 }
 
 export const DEFAULT_SETTINGS: Settings = {
-  enabledDecks: ['treble-staff', 'bass-staff'],
+  // Nothing is studied until you pick a course or decks: beginners and experienced readers start in different places.
+  enabledDecks: [],
   newPerDay: 10,
   easyMs: 2000,
   goodMs: 5000,
@@ -30,6 +34,7 @@ export const DEFAULT_SETTINGS: Settings = {
   phraseLength: 8,
   sightClef: 'treble',
   grandStyle: 'mixed',
+  melodic: true,
   midiInput: 'all',
   onscreenSound: true,
 };
@@ -45,6 +50,8 @@ export interface AppData {
   version: 1;
   cards: Record<string, CardState>;
   settings: Settings;
+  /** Progress through each course, by course id. */
+  courses: Record<string, CourseState>;
   /** Day key → number of new cards introduced that day. */
   newByDay: Record<string, number>;
   log: ReviewLogEntry[];
@@ -54,7 +61,7 @@ const KEY = 'pianosrs:v1';
 const MAX_LOG = 20_000;
 
 export function emptyData(): AppData {
-  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS }, newByDay: {}, log: [] };
+  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS }, courses: {}, newByDay: {}, log: [] };
 }
 
 export function loadData(): AppData {
@@ -79,6 +86,7 @@ export function normalize(raw: unknown): AppData {
     version: 1,
     cards: d.cards ?? {},
     settings: { ...DEFAULT_SETTINGS, ...(d.settings ?? {}) },
+    courses: d.courses ?? {},
     newByDay: d.newByDay ?? {},
     log: d.log ?? [],
   };

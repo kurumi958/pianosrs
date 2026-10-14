@@ -8,10 +8,16 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
 - **Sight-read**: generated 4/4 phrases built from the notes you've learned, with weak notes weighted to come up more.
   Play straight through (the cursor waits for the right note or chord); notes you stumble on become due in your flash cards
   straight away. Phrases can be treble only, bass only, or **two-handed on the grand staff**, with bar patterns for a right-hand
-  melody over held left-hand notes (and the reverse), melodies passing between the hands, and hands together.
-- **Decks**: treble and bass clef notes on the staff, ledger lines, sharps and flats, intervals and triads, plus grand-staff
+  melody over held left-hand notes (and the reverse), melodies passing between the hands, and hands together. *Stepwise* mode makes
+  lines move mostly by steps and skips, like real melodies.
+- **Courses**: an *adult beginner course* that introduces notes unit by unit in the order of an adult method book
+  (Faber's Adult Piano Adventures All-in-One Book 1, Units 2–16: first staff notes → bass C-D-E → treble spaces → G position →
+  sharps and flats → intervals → scales → primary chords in C and G, with the G major key signature). The next unit opens once
+  80% of the current one has graduated; you can start at any unit (earlier units count as already known) or open the next unit early.
+- **Nothing is studied by default**: on first launch you choose between starting the course and picking decks yourself.
+- **Topic decks**: treble and bass clef notes on the staff, ledger lines, sharps and flats, intervals and triads, plus grand-staff
   decks: *which staff?* (single notes on either staff, middle C on both), *hands together* (one note per hand in C and G
-  position) and *bass note + chord*. Enable them as you go.
+  position) and *bass note + chord*. Cards are shared by id between decks and the course, so a note learned in one counts in the other.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - No MIDI? The clickable on-screen piano and the computer keyboard (`A`–`;` white keys, `W E T Y U O P` black keys,
   `Z`/`X` change octave) both work.
@@ -46,7 +52,10 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | Path | What it does |
 | --- | --- |
 | `src/srs/scheduler.ts` | SM-2 scheduling (pure functions) |
-| `src/srs/deck.ts` | Card/deck definitions and introduction order |
+| `src/srs/cards.ts` | Card model (staff, key, notes per hand) and builders |
+| `src/srs/deck.ts` | Topic decks, course registry, shared card lookup |
+| `src/srs/course.ts` | The adult beginner course, unit by unit |
+| `src/srs/study.ts` | Course unlocking and which cards are available to study / read |
 | `src/srs/session.ts` | Picks the next card (learning → reviews → new → learn-ahead) |
 | `src/srs/grading.ts` | Turns correctness + reaction time into a grade |
 | `src/midi/input.ts` | Web MIDI, on-screen and computer-keyboard input hub |
@@ -57,7 +66,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 
 ## Ideas for later
 
-- Key signatures, rhythm reading, stepwise melodies
+- Custom decks: build your own from a range of notes, clefs, keys and intervals
+- Key signatures in sight-reading phrases (cards support them already), rhythm reading
 - FSRS scheduling as an option
 - Cloud sync between devices
 - Native Android build with a MIDI bridge plugin (see above)

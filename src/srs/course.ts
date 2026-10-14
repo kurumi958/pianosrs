@@ -1,0 +1,92 @@
+import { parsePitch } from '../music/notes';
+import { type Card, makeGrandCard } from './cards';
+import type { CourseUnit, DeckDef } from './deck';
+
+/**
+ * Cards from a compact spec: space-separated "RH|LH" entries, chords joined with "+".
+ * "C4|" is right-hand middle C, "|A3" is left-hand A, "E4|C3+E3+G3" is a melody note over a C chord.
+ * Everything is written on the grand staff, as in a beginner method book.
+ */
+function cards(spec: string, key = 'C'): Card[] {
+  const hand = (s: string) => (s ? s.split('+').map(parsePitch) : []);
+  return spec
+    .trim()
+    .split(/\s+/)
+    .map((entry) => {
+      const [rh, lh = ''] = entry.split('|');
+      return makeGrandCard(hand(rh), hand(lh), key);
+    });
+}
+
+const unit = (id: string, title: string, summary: string, list: Card[]): CourseUnit => ({ id, title, summary, cards: list });
+
+/**
+ * Follows the reading progression of a typical adult method book — unit by unit, the order of
+ * Faber's Adult Piano Adventures All-in-One Book 1. Unit 1 there is played from finger numbers
+ * and note names before the staff is introduced, so the course starts at Unit 2.
+ */
+const ADULT_BEGINNER_UNITS: CourseUnit[] = [
+  unit('u2', 'Unit 2 · Orientation to the staff', 'Middle C, D, E, F in the treble; middle C, B, A in the bass', cards('C4| |C4 D4| |B3 E4| |A3 F4|')),
+  unit('u3', 'Unit 3 · Reading reinforcement', 'Treble G (the G clef); bass G and F (the F clef)', cards('G4| |F3 |G3')),
+  unit(
+    'u4',
+    'Unit 4 · More about staff reading',
+    '3rds on the staff and the C chord',
+    cards('C4+E4| |F3+A3 D4+F4| |G3+B3 E4+G4| |A3+C4 C4+E4+G4|'),
+  ),
+  unit('u5', 'Unit 5 · More bass clef reading', 'Bass C, D, E and 3rds below middle C', cards('|C3 |D3 |E3 |C3+E3 |D3+F3 |E3+G3')),
+  unit('u6', 'Unit 6 · Ledger B, C and Csus4 chords', 'B below middle C; left-hand C and Csus4 chords', cards('B3| |C3+E3+G3 |C3+F3+G3 C4+F4+G4|')),
+  unit('u7', 'Unit 7 · Treble space notes F-A-C-E', 'A, C and E in the treble spaces; the F chord', cards('A4| C5| E5| F4+A4+C5| |F3+A3+C4')),
+  unit('u8', 'Unit 8 · Treble C pentascale', 'Treble C up to G: D, F and G above the middle line', cards('D5| F5| G5| C5+E5| E5+G5|')),
+  unit(
+    'u9',
+    'Unit 9 · G pentascales in 3 locations',
+    'Low G, A, B in the bass; treble B; G and Gsus4 chords',
+    cards('|G2 |A2 |B2 B4| G4+B4+D5| |G2+B2+D3 G4+C5+D5| |G2+C3+D3'),
+  ),
+  unit(
+    'u10',
+    'Unit 10 · Sharps and flats',
+    'Sharps and flats in both hands',
+    cards('F#4| |F#3 C#4| |Bb2 Bb4| |C#3 Eb4| |Eb3 G#4| Ab4|'),
+  ),
+  unit(
+    'u11',
+    'Unit 11 · Intervals: 4ths, 5ths, 6ths',
+    'Blocked 4ths, 5ths and 6ths in C and G position',
+    cards('C4+F4| C4+G4| |C3+F3 |C3+G3 C4+A4| |C3+A3 D4+G4| D4+A4| |G2+C3 |G2+D3 E4+A4| E4+C5| |G2+E3 G4+C5| G4+D5| G4+E5|'),
+  ),
+  unit('u12', 'Unit 12 · The C major scale', 'The scale in both hands, an octave apart', cards('C4|C3 D4|D3 E4|E3 F4|F3 G4|G3 A4|A3 B4|B3 C5|C4')),
+  unit('u13', 'Unit 13 · The G7 chord', 'The V7 chord in C (B-F-G), with melody notes', cards('|B2+F3+G3 B3+F4+G4| D4|B2+F3+G3 F4|B2+F3+G3')),
+  unit(
+    'u14',
+    'Unit 14 · Primary chords in C major',
+    'I, IV and V7 in the left hand under a melody note',
+    cards('|C3+F3+A3 E4|C3+E3+G3 F4|C3+F3+A3 B3|B2+F3+G3 G4|C3+E3+G3 A4|C3+F3+A3 G4|B2+F3+G3 C5|C3+E3+G3 C5|C3+F3+A3'),
+  ),
+  unit(
+    'u15',
+    'Unit 15 · The G major scale',
+    'The key signature of G: F is sharp unless marked natural',
+    cards('F#4| |F#3 F#5| |F#2 F4| G4|G2 A4|A2 B4|B2 C5|C3 D5|D3 E5|E3 F#5|F#3 G5|G3', 'G'),
+  ),
+  unit(
+    'u16',
+    'Unit 16 · Primary chords in G major',
+    'G, C and D7 in the left hand under a melody note',
+    cards('|G2+B2+D3 |G2+C3+E3 |F#2+C3+D3 B4|G2+B2+D3 C5|G2+C3+E3 A4|F#2+C3+D3 D5|G2+B2+D3 E5|G2+C3+E3 F#4|F#2+C3+D3', 'G'),
+  ),
+];
+
+export const COURSES: DeckDef[] = [
+  {
+    id: 'course-adult-beginner',
+    name: 'Adult beginner course',
+    description:
+      'Note reading from your first notes on the staff to primary chords in G, unit by unit in the order of an adult method book ' +
+      "(Faber's Adult Piano Adventures All-in-One Book 1). The next unit opens once you've learned most of the current one.",
+    kind: 'course',
+    units: ADULT_BEGINNER_UNITS,
+    cards: ADULT_BEGINNER_UNITS.flatMap((u) => u.cards),
+  },
+];

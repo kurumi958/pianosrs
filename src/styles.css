@@ -433,3 +433,87 @@ kbd {
     padding: 8px 9px;
   }
 }
+/* Courses */
+h2.section {
+  margin-top: 1.6em;
+}
+.course {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 12px;
+}
+.course.on {
+  border-color: var(--accent);
+}
+.course-controls {
+  justify-content: flex-start;
+  margin: 10px 0 4px;
+}
+.course-controls select {
+  max-width: 220px;
+}
+.units {
+  list-style: none;
+  padding: 0;
+  margin: 8px 0 0;
+}
+.unit {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  border-top: 1px solid var(--border);
+}
+.unit-icon {
+  width: 1.2em;
+  text-align: center;
+  color: var(--muted);
+}
+.unit.done .unit-icon {
+  color: var(--ok);
+}
+.unit.open .unit-icon {
+  color: var(--accent);
+}
+.unit.locked,
+.unit.skipped {
+  opacity: 0.55;
+}
+.unit.current {
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+  border-radius: 6px;
+}
+.unit-text {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.unit-progress {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.unit-progress .bar {
+  width: 60px;
+}
+.course-pos {
+  font-weight: 400;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* Onboarding */
+.choices {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+.choice {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  text-align: left;
+  padding: 16px;
+}

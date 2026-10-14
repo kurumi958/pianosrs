@@ -1,6 +1,6 @@
 import { Accidental, Formatter, Renderer, Stave, StaveConnector, StaveNote, Voice } from 'vexflow/bravura';
 import type { Card } from '../srs/deck';
-import { type Clef, type Pitch, sortPitches, vexKey } from './notes';
+import { accidentalInKey, type Clef, type Pitch, sortPitches, vexKey } from './notes';
 import { accidentalsToDraw, eventKey, type Beats, type DrawnAccidental, type Phrase, type PhraseEvent } from './phrase';
 
 export const COLORS = {
@@ -59,26 +59,31 @@ function drawVoices(ctx: Ctx, parts: { stave: Stave; notes: StaveNote[] }[]) {
   voices.forEach((v, i) => v.draw(ctx, parts[i].stave));
 }
 
-const plainAccs = (ps: Pitch[]): DrawnAccidental[] => sortPitches(ps).map((p) => (p.acc ? p.acc : null));
+const accsInKey = (ps: Pitch[], key: string): DrawnAccidental[] => sortPitches(ps).map((p) => accidentalInKey(p, key));
 
 /** One flash card: a whole note or chord on one staff, or on both staves of a grand staff. */
 export function renderCard(el: HTMLElement, card: Card, color = COLORS.ink): void {
   const width = 220;
+  const staveFor = (x: number, y: number, clef: Clef) => {
+    const st = new Stave(x, y, width - x - 10).addClef(clef);
+    if (card.key !== 'C') st.addKeySignature(card.key);
+    return st;
+  };
   if (card.staff !== 'grand') {
     const ctx = prepare(el, width, 190);
-    const stave = new Stave(10, 45, width - 20).addClef(card.staff).setContext(ctx).draw();
-    drawVoices(ctx, [{ stave, notes: [makeNote(card.notes, card.staff, 4, plainAccs(card.notes), color)] }]);
+    const stave = staveFor(10, 45, card.staff).setContext(ctx).draw();
+    drawVoices(ctx, [{ stave, notes: [makeNote(card.notes, card.staff, 4, accsInKey(card.notes, card.key), color)] }]);
     return;
   }
   const ctx = prepare(el, width, 290);
-  const treble = new Stave(25, 30, width - 35).addClef('treble').setContext(ctx).draw();
-  const bass = new Stave(25, 150, width - 35).addClef('bass').setContext(ctx).draw();
+  const treble = staveFor(25, 30, 'treble').setContext(ctx).draw();
+  const bass = staveFor(25, 150, 'bass').setContext(ctx).draw();
   connect(ctx, treble, bass, 'brace');
   connect(ctx, treble, bass, 'singleLeft');
   connect(ctx, treble, bass, 'singleRight');
   drawVoices(ctx, [
-    { stave: treble, notes: [makeNote(card.hands.treble, 'treble', 4, plainAccs(card.hands.treble), color)] },
-    { stave: bass, notes: [makeNote(card.hands.bass, 'bass', 4, plainAccs(card.hands.bass), color)] },
+    { stave: treble, notes: [makeNote(card.hands.treble, 'treble', 4, accsInKey(card.hands.treble, card.key), color)] },
+    { stave: bass, notes: [makeNote(card.hands.bass, 'bass', 4, accsInKey(card.hands.bass, card.key), color)] },
   ]);
 }
 

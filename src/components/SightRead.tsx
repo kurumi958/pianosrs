@@ -4,6 +4,7 @@ import { toMidi } from '../music/notes';
 import type { PhraseMark } from '../music/notation';
 import { generatePhrase, grandStaffPhrase, type GrandStyle, type Phrase, phraseEvents, singleStaffPhrase } from '../music/phrase';
 import { type Card, cardLabel, DECKS, type StaffKind } from '../srs/deck';
+import { knownCards, studyCards } from '../srs/study';
 import type { AppData, SightClef } from '../storage';
 import { useHeldNotes, useNoteEvents } from '../hooks';
 import { PhraseStaff } from './Staff';
@@ -14,34 +15,27 @@ interface Props {
   update: (fn: (d: AppData) => void) => void;
 }
 
-/** Cards you've already started learning, or (early on) the first few cards so there's always something to read. */
-function startedOrFirst(cards: Card[], data: AppData, fallbackDeck: string): Card[] {
-  const started = cards.filter((c) => data.cards[c.id] && data.cards[c.id].status !== 'new');
-  if (started.length >= 3) return started;
-  const source = cards.length ? cards : (DECKS.find((d) => d.id === fallbackDeck)?.cards ?? []);
-  return [...started, ...source.filter((c) => !started.includes(c))].slice(0, 5);
+const onlyHand = (hand: 'treble' | 'bass') => (c: Card) => c.hands[hand].length > 0 && c.hands[hand === 'treble' ? 'bass' : 'treble'].length === 0;
+
+/** Cards you know (or, early on, the first few you're about to learn) so there's always something to read. */
+function readable(known: Card[], upcoming: Card[], fallbackDeck: string): Card[] {
+  if (known.length >= 3) return known;
+  const source = upcoming.length ? upcoming : (DECKS.find((d) => d.id === fallbackDeck)?.cards ?? []);
+  return [...known, ...source.filter((c) => !known.includes(c))].slice(0, 5);
 }
 
 function buildPhrase(data: AppData, staff: StaffKind): Phrase {
-  const enabled = DECKS.filter((d) => data.settings.enabledDecks.includes(d.id)).flatMap((d) => d.cards);
+  const input = { enabledDecks: data.settings.enabledDecks, courses: data.courses, states: data.cards };
+  const known = knownCards(input);
+  const upcoming = studyCards(input);
   const bars = Math.max(1, Math.ceil(data.settings.phraseLength / 4));
+  const melodic = data.settings.melodic;
+  const pool = (hand: 'treble' | 'bass') => readable(known.filter(onlyHand(hand)), upcoming.filter(onlyHand(hand)), `${hand}-staff`);
   if (staff !== 'grand') {
-    const pool = startedOrFirst(
-      enabled.filter((c) => c.staff === staff),
-      data,
-      `${staff}-staff`,
-    );
-    return singleStaffPhrase(generatePhrase(pool, data.cards, bars * 4), staff);
+    return singleStaffPhrase(generatePhrase(pool(staff), data.cards, bars * 4, Math.random, melodic), staff);
   }
-  const rhOnly = enabled.filter((c) => c.hands.treble.length && !c.hands.bass.length);
-  const lhOnly = enabled.filter((c) => c.hands.bass.length && !c.hands.treble.length);
-  const both = enabled.filter((c) => c.hands.treble.length && c.hands.bass.length && data.cards[c.id] && data.cards[c.id].status !== 'new');
-  return grandStaffPhrase(
-    { rh: startedOrFirst(rhOnly, data, 'treble-staff'), lh: startedOrFirst(lhOnly, data, 'bass-staff'), both },
-    data.cards,
-    bars,
-    data.settings.grandStyle,
-  );
+  const both = known.filter((c) => c.hands.treble.length && c.hands.bass.length);
+  return grandStaffPhrase({ rh: pool('treble'), lh: pool('bass'), both }, data.cards, bars, data.settings.grandStyle, Math.random, melodic);
 }
 
 interface Result {
@@ -74,7 +68,7 @@ export function SightRead({ data, update }: Props) {
   const phrase = useMemo(
     () => buildPhrase(data, staff),
     // Only regenerate on a new round or settings change, not on every card-state update.
-    [round, staff, data.settings.phraseLength, data.settings.grandStyle, deckKey],
+    [round, staff, data.settings.phraseLength, data.settings.grandStyle, data.settings.melodic, deckKey],
   );
   const events = useMemo(() => phraseEvents(phrase), [phrase]);
   const targetOf = useCallback(
@@ -144,7 +138,7 @@ export function SightRead({ data, update }: Props) {
     [events, cursor, missed],
   );
 
-  const set = <K extends 'sightClef' | 'phraseLength' | 'grandStyle'>(k: K, v: AppData['settings'][K]) =>
+  const set = <K extends 'sightClef' | 'phraseLength' | 'grandStyle' | 'melodic'>(k: K, v: AppData['settings'][K]) =>
     update((d) => {
       d.settings[k] = v;
     });
@@ -190,6 +184,9 @@ export function SightRead({ data, update }: Props) {
             </select>
           </label>
         )}
+        <label title="Mostly steps and skips, like real melodies, instead of leaping anywhere">
+          <input type="checkbox" checked={data.settings.melodic} onChange={(e) => set('melodic', e.target.checked)} /> Stepwise
+        </label>
         <span className="spacer" />
         <button onClick={() => setRound((r) => r + 1)}>New phrase</button>
       </div>

@@ -34,33 +34,37 @@ interface DslNote extends NoteValue {
 
 const TOKEN = /^(r|[A-G][#b]?\d(?:\+[A-G][#b]?\d)*)([whqes])(\.?)(~?)$/;
 
-function parseVoice(line: string, where: string): DslNote[][] {
-  return line
+const splitBars = (line: string) =>
+  line
     .split('|')
     .map((bar) => bar.trim())
-    .filter((bar, i, all) => bar || i < all.length - 1)
-    .map((bar, bi) => {
-      const out: DslNote[] = [];
-      let group: number | undefined;
-      let groups = 0;
-      for (const tok of bar.replace(/3\[/g, ' 3[ ').replace(/\]/g, ' ] ').trim().split(/\s+/).filter(Boolean)) {
-        if (tok === '3[') {
-          group = groups++;
-          continue;
-        }
-        if (tok === ']') {
-          group = undefined;
-          continue;
-        }
-        const m = TOKEN.exec(tok);
-        if (!m) throw new Error(`${where}, bar ${bi + 1}: can't read "${tok}"`);
-        const n: DslNote = { pitches: m[1] === 'r' ? [] : m[1].split('+').map(parsePitch), base: m[2] as Base, dots: m[3] ? 1 : 0 };
-        if (m[4]) n.tie = true;
-        if (group !== undefined) n.triplet = group;
-        out.push(n);
-      }
-      return out;
-    });
+    .filter((bar, i, all) => bar || i < all.length - 1);
+
+function parseVoice(line: string, where: string): DslNote[][] {
+  return splitBars(line).map((bar, bi) => parseBar(bar, `${where}, bar ${bi + 1}`));
+}
+
+function parseBar(bar: string, where: string): DslNote[] {
+  const out: DslNote[] = [];
+  let group: number | undefined;
+  let groups = 0;
+  for (const tok of bar.replace(/3\[/g, ' 3[ ').replace(/\]/g, ' ] ').trim().split(/\s+/).filter(Boolean)) {
+    if (tok === '3[') {
+      group = groups++;
+      continue;
+    }
+    if (tok === ']') {
+      group = undefined;
+      continue;
+    }
+    const m = TOKEN.exec(tok);
+    if (!m) throw new Error(`${where}: can't read "${tok}"`);
+    const n: DslNote = { pitches: m[1] === 'r' ? [] : m[1].split('+').map(parsePitch), base: m[2] as Base, dots: m[3] ? 1 : 0 };
+    if (m[4]) n.tie = true;
+    if (group !== undefined) n.triplet = group;
+    out.push(n);
+  }
+  return out;
 }
 
 const VOICES = [
@@ -69,6 +73,55 @@ const VOICES = [
   { key: 'lh', staff: 1, hand: 'lh', voice: '5', stem: 'up' },
   { key: 'lh2', staff: 1, hand: 'lh', voice: '6', stem: 'down' },
 ] as const;
+
+const isOptional = (key: string) => key === 'rh2' || key === 'lh2';
+
+const VOICE_NAME: Record<string, string> = { rh: 'right hand', rh2: 'right hand, 2nd voice', lh: 'left hand', lh2: 'left hand, 2nd voice' };
+
+export interface BarProblem {
+  /** Bar index from 0 (-1 for the song as a whole). */
+  bar: number;
+  message: string;
+}
+
+/**
+ * Everything that keeps a song from compiling, bar by bar: unreadable notes, and bars whose voices don't fill the
+ * time signature. Empty when the song compiles.
+ */
+export function barProblems(src: SongSource): BarProblem[] {
+  let full: number;
+  try {
+    full = barTicks(parseMeter(src.meter));
+  } catch (e) {
+    return [{ bar: -1, message: e instanceof Error ? e.message : String(e) }];
+  }
+  const out: BarProblem[] = [];
+  const voices = VOICES.filter((v) => src[v.key]?.trim()).map((v) => ({ key: v.key, bars: splitBars(src[v.key]!) }));
+  if (!voices.some((v) => !isOptional(v.key))) return [{ bar: -1, message: 'There are no notes yet.' }];
+  const count = Math.max(...voices.map((v) => v.bars.length));
+  for (const v of voices) {
+    if (v.bars.length !== count && !isOptional(v.key))
+      out.push({ bar: -1, message: `The ${VOICE_NAME[v.key]} has ${v.bars.length} bars; the longest part has ${count}.` });
+  }
+  const q = (t: number) => `${+(t / 24).toFixed(2)}`;
+  for (let i = 0; i < count; i++) {
+    const lengths: { key: string; ticks: number }[] = [];
+    for (const v of voices) {
+      const text = v.bars[i];
+      if (text === undefined || (!text && isOptional(v.key))) continue;
+      try {
+        lengths.push({ key: v.key, ticks: parseBar(text, '').reduce((a, n) => a + ticksOf(n), 0) });
+      } catch (e) {
+        out.push({ bar: i, message: `${VOICE_NAME[v.key]}${e instanceof Error ? e.message : String(e)}` });
+      }
+    }
+    for (const l of lengths) {
+      const pickupOk = i === 0 && src.pickup && l.ticks < full && l.ticks === lengths[0].ticks;
+      if (l.ticks !== full && !pickupOk) out.push({ bar: i, message: `${VOICE_NAME[l.key]} lasts ${q(l.ticks)} quarter notes; a bar of ${src.meter} is ${q(full)}.` });
+    }
+  }
+  return out;
+}
 
 const TYPE: Record<Base, string> = { w: 'whole', h: 'half', q: 'quarter', e: 'eighth', s: '16th' };
 const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
@@ -79,12 +132,17 @@ export function compileSong(src: SongSource): { score: Score; xml: string } {
   const full = barTicks(meter);
   const voices = VOICES.filter((v) => src[v.key]?.trim()).map((v) => ({ ...v, bars: parseVoice(src[v.key]!, `${src.id} ${v.key}`) }));
   const count = voices[0].bars.length;
-  for (const v of voices) if (v.bars.length !== count) throw new Error(`${src.id}: ${v.key} has ${v.bars.length} bars, rh has ${count}`);
+  for (const v of voices) {
+    // A second voice can stop early: the bars it doesn't reach are empty.
+    if (isOptional(v.key)) while (v.bars.length < count) v.bars.push([]);
+    if (v.bars.length !== count) throw new Error(`${src.id}: ${v.key} has ${v.bars.length} bars, rh has ${count}`);
+  }
 
   const measures: ScoreMeasure[] = [];
   let start = 0;
   for (let i = 0; i < count; i++) {
-    const lengths = voices.map((v) => v.bars[i].reduce((a, n) => a + ticksOf(n), 0));
+    // A second voice (rh2 / lh2) may sit out a bar: an empty bar there means no second voice.
+    const lengths = voices.filter((v) => !isOptional(v.key) || v.bars[i].length).map((v) => v.bars[i].reduce((a, n) => a + ticksOf(n), 0));
     const length = lengths[0];
     const ok = lengths.every((l) => l === length) && (length === full || (i === 0 && src.pickup && length < full));
     if (!ok) throw new Error(`${src.id}, bar ${i + 1}: voices last ${lengths.map((l) => l / 24).join(', ')} quarters; a bar is ${full / 24}`);
@@ -147,9 +205,11 @@ function toMusicXML(src: SongSource, voices: { key: string; staff: number; voice
       );
       out.push(`<sound tempo="${src.tempo}"/>`);
     }
-    voices.forEach((v, vi) => {
-      if (vi > 0) out.push(`<backup><duration>${m.length}</duration></backup>`);
+    let written = 0;
+    voices.forEach((v) => {
       const bar = v.bars[mi];
+      if (!bar.length) return;
+      if (written++ > 0) out.push(`<backup><duration>${m.length}</duration></backup>`);
       bar.forEach((n, ni) => {
         const prev = prevOf.get(v.key);
         const d = ticksOf(n);

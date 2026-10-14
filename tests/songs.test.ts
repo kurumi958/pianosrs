@@ -225,3 +225,24 @@ describe('new cards', () => {
     expect(gradePassage(20, 1, [400], { easyMs: 1000, goodMs: 5000 }, true)).toBe(2);
   });
 });
+
+describe('transcriptions', () => {
+  const base = { id: 't', title: 'T', composer: '', level: 1 as const, about: '', key: 'G', meter: '3/4', tempo: 90 };
+  it('reports each bar that does not add up, and unreadable notes', async () => {
+    const { barProblems } = await import('../src/songs/dsl');
+    const problems = barProblems({ ...base, rh: 'D5q G4e A4e B4e C5e | D5q G4q | E5q Q4q G4q', lh: 'G3h. | B3h. | C4h.' });
+    expect(problems.map((p) => p.bar)).toEqual([1, 2]);
+    expect(problems[0].message).toMatch(/right hand lasts 2 quarter notes; a bar of 3\/4 is 3/);
+    expect(problems[1].message).toMatch(/can't read "Q4q"/);
+    expect(barProblems({ ...base, rh: 'D5h.', lh: 'G3h.' })).toEqual([]);
+    expect(barProblems({ ...base, meter: 'x', rh: 'D5h.', lh: '' })[0].bar).toBe(-1);
+  });
+  it('lets a second voice sit out bars', async () => {
+    const { barProblems, compileSong } = await import('../src/songs/dsl');
+    const src = { ...base, rh: 'D5h. | B4h.', lh: 'G3q B3q D4q | G3h.', lh2: 'G2h. | ' };
+    expect(barProblems(src)).toEqual([]);
+    const { score, xml } = compileSong(src);
+    expect(score.notes.filter((n) => n.voice === '6')).toHaveLength(1);
+    expect(parse(xml).notes).toHaveLength(score.notes.length);
+  });
+});

@@ -1870,3 +1870,116 @@ button.bar-cell:hover {
   padding-left: 1.2em;
   line-height: 1.8;
 }
+
+/* PDF transcription: the page beside the details, then the notes, then the engraved result. */
+.page-inner.wide {
+  max-width: 1320px;
+}
+.transcribe-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 18px;
+  align-items: start;
+}
+@media (max-width: 900px) {
+  .transcribe-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.pdf-pane {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  position: sticky;
+  top: 0;
+}
+.pdf-page {
+  max-height: 72vh;
+  overflow: auto;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+}
+.pdf-page img {
+  display: block;
+  width: 100%;
+}
+.tx-meta {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
+}
+.tx-voices {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+.tx-voice textarea {
+  width: 100%;
+  font: 0.86rem/1.55 var(--mono);
+  resize: vertical;
+  white-space: pre;
+  overflow-x: auto;
+}
+.tx-voice.second {
+  opacity: 0.9;
+}
+.tx-status {
+  margin: 0;
+  padding-left: 1.1em;
+  color: var(--ink-2);
+}
+.tx-problems,
+.tx-notes {
+  padding: 10px 12px;
+  border-radius: 8px;
+  background: color-mix(in srgb, var(--brick) 8%, var(--sheet));
+}
+.tx-notes {
+  background: var(--gold-soft);
+}
+.tx-problems ul,
+.tx-notes ul {
+  margin: 6px 0 0;
+  padding-left: 1.2em;
+}
+.cheat code {
+  font: 0.85em var(--mono);
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--sheet-2);
+}
+.cheat summary {
+  cursor: pointer;
+  color: var(--crown);
+}
+.transcriber h3 {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.transcriber .back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.transcriber .field {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+.transcriber .field input,
+.transcriber .field select,
+.transcriber .field .text-input {
+  width: 100%;
+  font-family: var(--sans);
+}
+.transcriber .tx-voice .text-input {
+  font-family: var(--mono);
+}
+.tx-meta .check {
+  align-self: end;
+  padding-bottom: 6px;
+}

@@ -54,6 +54,13 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   slip is Okay, a clean run is Good, and a clean run without hesitating is Easy. You can also practice any bars, either hand,
   waiting for you or in time with a count-in and metronome; the bar strip shows which bars are learned and which keep tripping
   you up. Repeats are read once, as written; grace notes aren't judged.
+- **Songs from PDFs**: a PDF is a picture of the music, so it's transcribed first. *Import MusicXML or PDF* opens a PDF in an
+  editor: the page on one side, the song's details and its notes (in the app's compact notation, one bar per line) on the
+  other, and the engraved result underneath. *Read it with Claude* sends each page image to Claude (`claude-opus-5-5`,
+  through the Anthropic API with your own key, which stays in the browser; roughly $0.10–0.40 a page), which writes the
+  notes; every bar is checked to add up, and bars that don't go back to Claude to be read again. You then compare the
+  engraving with the page and fix what was misread, or type the notes in yourself without a key. The PDF is kept with the
+  song, so *Check or correct the transcription* reopens it side by side. A song keeps one key and time signature throughout.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
   the middle, and the whole 88-key keyboard is docked along the bottom at full width, so keys never move. The full-screen
@@ -133,6 +140,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/songs/dsl.ts` | The compact notation the included songs are written in, compiled to the score model and MusicXML |
 | `src/songs/corpus.ts` | The included songs |
 | `src/songs/library.ts` | Song library (included + imported in IndexedDB) and song decks of passage cards |
+| `src/songs/pdf.ts` | Opens PDFs and renders pages (pdf.js) |
+| `src/songs/transcribe.ts` | Reads a page into the song notation with Claude, sending back bars that don't add up |
 | `src/songs/play.ts` | Note colours while playing, tie chains, bars to work on |
 | `src/components/*` | React screens |
 
@@ -142,6 +151,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
 - Optimising FSRS parameters from your own review history (today: paste them from Anki)
 - Per-deck scheduling presets, leeches and suspending cards
+- A larger corpus of included songs: more classical works (Bach, Clementi, Mozart, Schumann, Burgmüller, Chopin…)
+- PDF transcription: key and time signature changes within a piece; repeat signs and endings
 - Imported songs: include them in *Export backup* (today they live only in the browser that imported them)
 - Judging note lengths (releases), not just onsets; pedalling
 - Songs: playing repeats and voltas as performed; a bigger CC0 corpus (OpenScore, Mutopia); looping a passage while

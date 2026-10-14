@@ -309,3 +309,19 @@ export function formatDelay(ms: number): string {
 export function fsrsInterval(stability: number, cfg: SchedulerConfig): number {
   return fsrsFor({ ...cfg, fuzz: false }).next_interval(stability, 0);
 }
+
+/**
+ * "Known" for a new card (as in JPDB): treat it as answered Good through its learning steps and then once more,
+ * all now. The card graduates and comes back in a few days to check it really is known. Returns the new state
+ * and how many Good answers that took (for the review log).
+ */
+export function markKnown(card: CardState, now: number, cfg: SchedulerConfig = DEFAULT_SCHEDULER): { state: CardState; goods: number } {
+  let state = schedule(card, 3, now, cfg);
+  let goods = 1;
+  while (state.status !== 'review' && goods < 20) {
+    state = schedule(state, 3, now, cfg);
+    goods++;
+  }
+  state = schedule(state, 3, now, cfg);
+  return { state, goods: goods + 1 };
+}

@@ -7,6 +7,7 @@ import {
   DEFAULT_SCHEDULER,
   formatDelay,
   fsrsInterval,
+  markKnown,
   memoryFromHistory,
   newCardState,
   parseSteps,
@@ -32,7 +33,7 @@ import {
   singleStaffPhrase,
 } from '../src/music/phrase';
 import { autoGrade, limitEasy } from '../src/srs/grading';
-import { studyStreak } from '../src/srs/today';
+import { studyStreak, todayPlan } from '../src/srs/today';
 import { mulberry32 } from '../src/srs/deck';
 
 const MIN = 60_000;
@@ -168,6 +169,36 @@ describe('FSRS scheduler', () => {
     expect(d.cards.b.difficulty).toBeGreaterThan(5);
     expect(d.cards.c.stability).toBeUndefined();
     expect(needsFsrsMemory(d)).toBe(false);
+  });
+});
+
+describe('Known (new cards)', () => {
+  const now = 1_000_000_000_000;
+  for (const [name, cfg] of [['FSRS', fsrsCfg], ['SM-2', sm2]] as const) {
+    it(`graduates a new card and brings it back in a few days (${name})`, () => {
+      const { state, goods } = markKnown(newCardState('x'), now, cfg);
+      expect(state.status).toBe('review');
+      expect(goods).toBe(3); // Good through the two learning steps, then once more
+      expect(state.interval).toBeGreaterThanOrEqual(2);
+      expect(state.interval).toBeLessThanOrEqual(7);
+      expect(state.due).toBe(now + state.interval * DAY);
+    });
+  }
+  it('needs fewer answers when there are no learning steps', () => {
+    expect(markKnown(newCardState('x'), now, { ...fsrsCfg, learningSteps: '' }).goods).toBe(2);
+  });
+  it("doesn't count Known answers as real ones in the day's numbers", () => {
+    const d = emptyData();
+    d.settings.enabledDecks = ['treble-staff'];
+    const t = Date.now();
+    d.log = [
+      { id: 'treble:C4', t, grade: 3, ms: 0, known: true },
+      { id: 'treble:C4', t, grade: 3, ms: 0, known: true },
+      { id: 'treble:D4', t, grade: 1, ms: 2000 },
+    ];
+    const plan = todayPlan(d, t);
+    expect(plan.reviewedToday).toBe(1);
+    expect(plan.accuracy).toBe(0);
   });
 });
 

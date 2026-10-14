@@ -5,7 +5,7 @@ import { COLORS } from '../music/notation';
 import { type Card, cardLabel, COURSE_DECKS as COURSES } from '../srs/deck';
 import { courseProgress, studyCards } from '../srs/study';
 import { autoGrade, limitEasy } from '../srs/grading';
-import { type CardState, formatDelay, type Grade, GRADE_LABELS, schedule } from '../srs/scheduler';
+import { type CardState, formatDelay, type Grade, GRADE_LABELS, markKnown, schedule } from '../srs/scheduler';
 import { countQueue, pickNext, type QueuePick } from '../srs/session';
 import { type AppData, dayKey } from '../storage';
 import { dailyLimits } from '../srs/today';
@@ -29,6 +29,8 @@ interface Undo {
   wasNew: boolean;
   wasReview: boolean;
   day: string;
+  /** How many review-log entries this answer added (Known adds several). */
+  logCount: number;
 }
 
 export function Review({ data, update, onNavigate }: Props) {
@@ -38,6 +40,7 @@ export function Review({ data, update, onNavigate }: Props) {
   const [chosen, setChosen] = useState<Grade>(1);
   const [lastMs, setLastMs] = useState(0);
   const [detail, setDetail] = useState('');
+  const [markedKnown, setMarkedKnown] = useState(false);
   const [undo, setUndo] = useState<Undo | null>(null);
   const [reviewedNow, setReviewedNow] = useState(0);
   // Show the right keys on the keyboard after a wrong answer.
@@ -83,7 +86,8 @@ export function Review({ data, update, onNavigate }: Props) {
     const now = Date.now();
     const day = dayKey(now);
     const wasReview = p.state.status === 'review';
-    setUndo({ cardId: p.card.id, prev: data.cards[p.card.id], wasNew: p.isNew, wasReview, day });
+    setUndo({ cardId: p.card.id, prev: data.cards[p.card.id], wasNew: p.isNew, wasReview, day, logCount: 1 });
+    setMarkedKnown(false);
     lastCard.current = p.card.id;
     setReviewedNow((n) => n + 1);
     update((d) => {
@@ -163,6 +167,25 @@ export function Review({ data, update, onNavigate }: Props) {
     return () => window.removeEventListener('keydown', onKey);
   });
 
+  /** Known: a new card you can already read skips learning, and comes back in a few days to check. */
+  const markAsKnown = () => {
+    if (!pick || !pick.isNew || phase !== 'question') return;
+    const now = Date.now();
+    const day = dayKey(now);
+    const { state, goods } = markKnown(pick.state, now, data.settings.srs);
+    setUndo({ cardId: pick.card.id, prev: data.cards[pick.card.id], wasNew: true, wasReview: false, day, logCount: goods });
+    lastCard.current = pick.card.id;
+    setReviewedNow((n) => n + 1);
+    setMarkedKnown(true);
+    setPhase('correct');
+    update((d) => {
+      d.cards[pick.card.id] = state;
+      d.newByDay[day] = (d.newByDay[day] ?? 0) + 1;
+      for (let i = 0; i < goods; i++) d.log.push({ id: pick.card.id, t: now, grade: 3, ms: 0, known: true });
+    });
+    advanceTimer.current = window.setTimeout(() => setPick(null), 1100);
+  };
+
   const doUndo = () => {
     if (!undo) return;
     window.clearTimeout(advanceTimer.current);
@@ -171,8 +194,10 @@ export function Review({ data, update, onNavigate }: Props) {
       else delete d.cards[undo.cardId];
       if (undo.wasNew) d.newByDay[undo.day] = Math.max(0, (d.newByDay[undo.day] ?? 1) - 1);
       if (undo.wasReview) d.reviewsByDay[undo.day] = Math.max(0, (d.reviewsByDay[undo.day] ?? 1) - 1);
-      const idx = d.log.map((l) => l.id).lastIndexOf(undo.cardId);
-      if (idx >= 0) d.log.splice(idx, 1);
+      for (let i = 0; i < undo.logCount; i++) {
+        const idx = d.log.map((l) => l.id).lastIndexOf(undo.cardId);
+        if (idx >= 0) d.log.splice(idx, 1);
+      }
     });
     setReviewedNow((n) => Math.max(0, n - 1));
     setUndo(null);
@@ -298,6 +323,7 @@ export function Review({ data, update, onNavigate }: Props) {
   const color = phase === 'correct' ? COLORS.ok : phase === 'wrong' ? COLORS.miss : undefined;
   // Show the unfuzzed interval on the buttons, as Anki does.
   const preview = (g: Grade) => formatDelay(schedule(pick.state, g, Date.now(), { ...data.settings.srs, fuzz: false }).due - Date.now());
+  const knownPreview = pick.isNew ? formatDelay(markKnown(pick.state, Date.now(), { ...data.settings.srs, fuzz: false }).state.due - Date.now()) : '';
 
   const status =
     phase === 'question' ? (
@@ -308,6 +334,8 @@ export function Review({ data, update, onNavigate }: Props) {
       ) : (
         `Play the ${pick.card.notes.length > 1 ? 'notes' : 'note'}`
       )
+    ) : phase === 'correct' && markedKnown ? (
+      <>✓ Marked as known. It'll come back in {knownPreview} to check.</>
     ) : phase === 'correct' ? (
       <>✓ {pick.card.rhythm ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`}</>
     ) : pick.card.rhythm ? (
@@ -334,11 +362,12 @@ export function Review({ data, update, onNavigate }: Props) {
       showLabels={data.settings.showKeyLabels}
       bottom={
         <GradeBar
-          lit={phase === 'question' ? null : chosen}
+          lit={phase === 'question' || markedKnown ? null : chosen}
           enabled={phase === 'wrong'}
           preview={preview}
           onPick={setChosen}
           onContinue={phase === 'wrong' ? continueAfterWrong : undefined}
+          known={pick.isNew && (phase === 'question' || markedKnown) ? { preview: knownPreview, lit: markedKnown, onClick: markAsKnown } : undefined}
         />
       }
     />
@@ -352,12 +381,15 @@ function GradeBar({
   preview,
   onPick,
   onContinue,
+  known,
 }: {
   lit?: Grade | null;
   enabled?: boolean;
   preview?: (g: Grade) => string;
   onPick?: (g: Grade) => void;
   onContinue?: () => void;
+  /** New cards: "Known" skips learning for a card you can already read. */
+  known?: { preview: string; lit: boolean; onClick: () => void };
 }) {
   return (
     <>
@@ -371,6 +403,20 @@ function GradeBar({
         <button className="primary" onClick={onContinue}>
           Continue ⏎
         </button>
+      )}
+      {known && (
+        <>
+          <span className="bar-sep" aria-hidden="true" />
+          <button
+            className={`grade known ${known.lit ? 'lit' : ''}`}
+            onClick={known.onClick}
+            disabled={known.lit}
+            title="Already know this one? Skip learning it; it comes back in a few days to check."
+          >
+            Known
+            <small>{known.preview}</small>
+          </button>
+        </>
       )}
     </>
   );

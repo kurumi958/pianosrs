@@ -5,7 +5,8 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
 - **Review**: flash cards show a note, interval or chord on a treble, bass or grand staff. Play it on your keyboard. The app grades you
   automatically: a wrong key counts as *Again*, and a right answer is *Easy*, *Good* or *Hard* depending on how fast you
   played it. Scheduling uses **FSRS** (the default) or Anki's classic **SM-2**, with learning and relearning steps, daily
-  new-card and review limits, and undo. All of Anki's scheduling options are in *Settings → Scheduling*: steps, desired
+  new-card and review limits, and undo. New cards also have a **Known** button (as in JPDB) for notes you can already read: it counts as answering
+  Good through the learning steps and once more, so the card comes back in a few days to check. All of Anki's scheduling options are in *Settings → Scheduling*: steps, desired
   retention and FSRS parameters (paste optimised ones from Anki), or SM-2's graduating/easy intervals, starting ease, easy
   bonus, interval modifier, hard and new intervals; plus maximum interval, fuzz, when the next day starts and the learn-ahead
   limit. Turning FSRS on rebuilds each card's memory by replaying its review history.

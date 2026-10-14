@@ -14,8 +14,10 @@ export function Stats({ data }: { data: AppData }) {
   }
 
   const today = dayKey(now);
-  const todayLog = data.log.filter((l) => dayKey(l.t) === today);
-  const week = data.log.filter((l) => l.t > now - 7 * DAY);
+  // Answers recorded by "Known" aren't real answers, so they don't count here.
+  const answers = data.log.filter((l) => !l.known);
+  const todayLog = answers.filter((l) => dayKey(l.t) === today);
+  const week = answers.filter((l) => l.t > now - 7 * DAY);
   const correctWeek = week.filter((l) => l.grade > 1).length;
   const avgMs = week.length ? week.reduce((a, l) => a + l.ms, 0) / week.length : 0;
 

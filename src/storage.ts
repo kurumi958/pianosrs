@@ -83,6 +83,8 @@ export interface ReviewLogEntry {
   t: number;
   grade: Grade;
   ms: number;
+  /** Set for the Good answers recorded when a new card is marked Known (not real answers). */
+  known?: boolean;
 }
 
 export interface AppData {

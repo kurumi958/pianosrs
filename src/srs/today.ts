@@ -62,8 +62,10 @@ export function todayPlan(data: AppData, now = Date.now()) {
       units: c.units!.length,
     };
   });
-  const todayLog = data.log.filter((l) => dayKey(l.t) === dayKey(now));
-  const week = data.log.filter((l) => l.t > now - 7 * DAY);
+  // Answers recorded by "Known" aren't real answers, so they don't count here.
+  const answers = data.log.filter((l) => !l.known);
+  const todayLog = answers.filter((l) => dayKey(l.t) === dayKey(now));
+  const week = answers.filter((l) => l.t > now - 7 * DAY);
   return {
     counts,
     total,
@@ -73,7 +75,7 @@ export function todayPlan(data: AppData, now = Date.now()) {
     courses,
     reviewedToday: todayLog.length,
     accuracy: week.length ? week.filter((l) => l.grade > 1).length / week.length : null,
-    streak: studyStreak(data.log, now),
+    streak: studyStreak(answers, now),
     hasDecks: cards.length > 0,
   };
 }

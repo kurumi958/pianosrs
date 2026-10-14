@@ -1230,3 +1230,19 @@ textarea.text-input {
 .segmented button.on b {
   color: var(--crown);
 }
+
+/* "Known" for new cards: set apart from the grade buttons. */
+.bar-sep {
+  width: 1px;
+  height: 30px;
+  background: var(--line-strong);
+  margin: 0 6px;
+}
+.grade.known {
+  border-color: var(--gold);
+  color: var(--crown);
+}
+.grade.known.lit {
+  background: var(--crown);
+  color: var(--crown-ink);
+}

@@ -22,8 +22,10 @@ function prepare(el: HTMLElement, width: number, height: number) {
     svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
     svg.removeAttribute('width');
     svg.removeAttribute('height');
+    // Fill the container and scale the music to fit it (the viewBox keeps the proportions).
     svg.style.width = '100%';
-    svg.style.height = 'auto';
+    svg.style.height = '100%';
+    svg.style.display = 'block';
   }
   return ctx;
 }
@@ -116,21 +118,27 @@ export function renderCard(el: HTMLElement, card: Card, color = COLORS.ink): voi
 
 export type PhraseMark = 'pending' | 'current' | 'ok' | 'miss';
 
-/** A sight-reading phrase in 4/4, wrapped over as many lines as fit. `marks` has one entry per event. */
-export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEvent[], marks: PhraseMark[], logicalWidth: number): void {
+/** Size of a rendered phrase, in SVG units, when laid out `perLine` bars to a line. */
+export function phraseSize(phrase: Phrase, perLine: number): { width: number; height: number; lines: number } {
+  const grand = phrase.staff === 'grand';
+  const lines = Math.ceil(phrase.measures.length / perLine);
+  return { width: (grand ? 25 : 10) + 10 + perLine * MEASURE_W, height: lines * (grand ? 240 : 140) + 20, lines };
+}
+
+const MEASURE_W = 230;
+
+/** A sight-reading phrase, `perLine` bars to a line. `marks` has one entry per event. */
+export function renderPhrase(el: HTMLElement, phrase: Phrase, events: PhraseEvent[], marks: PhraseMark[], perLine: number): void {
   const grand = phrase.staff === 'grand';
   const clefs: Clef[] = grand ? ['treble', 'bass'] : [phrase.staff as Clef];
   const eventIndex = new Map(events.map((e, i) => [eventKey(e.measure, e.beat), i]));
   const left = grand ? 25 : 10;
   const n = phrase.measures.length;
-  const maxPerLine = Math.max(1, Math.floor((logicalWidth - left - 10) / 200));
-  const lines = Math.ceil(n / maxPerLine);
-  // Spread bars evenly over the lines rather than leaving one stranded on the last line.
-  const perLine = Math.ceil(n / lines);
   const staffGap = 110;
   const lineHeight = grand ? 240 : 140;
-  const ctx = prepare(el, logicalWidth, lines * lineHeight + 20);
-  const measureWidth = (logicalWidth - left - 10) / perLine;
+  const { width, height } = phraseSize(phrase, perLine);
+  const ctx = prepare(el, width, height);
+  const measureWidth = MEASURE_W;
 
   phrase.measures.forEach((m, mi) => {
     const line = Math.floor(mi / perLine);

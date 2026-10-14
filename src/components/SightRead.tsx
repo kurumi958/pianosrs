@@ -9,9 +9,8 @@ import { barClicks, outputLatencyMs, scheduleClicks } from '../midi/metronome';
 import { type Card, cardLabel, DECKS, type StaffKind } from '../srs/deck';
 import { cardsInKey, knownCards, learnedKeys, learnedRhythms, phraseRhythms, studyCards } from '../srs/study';
 import type { AppData, SightClef } from '../storage';
-import { useHeldNotes, useNoteEvents } from '../hooks';
+import { useNoteEvents, useShowOnKeyboard } from '../hooks';
 import { PhraseStaff } from './Staff';
-import { Piano } from './Piano';
 
 interface Props {
   data: AppData;
@@ -70,13 +69,14 @@ interface Result {
 const ROTATION: StaffKind[] = ['treble', 'bass', 'grand'];
 
 export function SightRead({ data, update }: Props) {
-  const held = useHeldNotes();
   const [round, setRound] = useState(0);
   const [cursor, setCursor] = useState(0);
   const [missed, setMissed] = useState<Set<number>>(new Set());
   const [okSet, setOkSet] = useState<Set<number>>(new Set());
   const [wrong, setWrong] = useState<number[]>([]);
   const [result, setResult] = useState<Result | null>(null);
+  const [showOptions, setShowOptions] = useState(false);
+  useShowOnKeyboard([], wrong);
   const [running, setRunning] = useState<{ start: number; judge: TempoJudge } | null>(null);
   const [countIn, setCountIn] = useState(false);
   const startedAt = useRef<number | null>(null);
@@ -246,10 +246,27 @@ export function SightRead({ data, update }: Props) {
 
   const target = events[Math.min(cursor, events.length - 1)].pitches.map(toMidi);
   const bars = phrase.measures.length;
+  const STAFF_NAMES: Record<SightClef, string> = { treble: 'Treble', bass: 'Bass', grand: 'Grand staff', alternate: 'Rotating staves' };
+  const summary = [
+    STAFF_NAMES[sc],
+    `${bars} bar${bars > 1 ? 's' : ''}`,
+    settings.sightKey === 'learned' ? 'keys you know' : `${keyName(settings.sightKey)} major`,
+    tempo ? `in time, ♩ = ${settings.sightBpm}` : 'wait for me',
+  ].join(' · ');
 
   return (
-    <div className="sight">
+    <div className="stage-col sight">
       <div className="row controls">
+        <span className="summary">{summary}</span>
+        <span className="spacer" />
+        <button onClick={() => setShowOptions((o) => !o)} aria-expanded={showOptions} className={showOptions ? 'active' : ''}>
+          Options
+        </button>
+        <button onClick={() => setRound((r) => r + 1)}>New phrase</button>
+      </div>
+
+      {showOptions && (
+      <div className="panel options-panel" role="dialog" aria-label="Sight-reading options">
         <label>
           Staff{' '}
           <select value={sc} onChange={(e) => set('sightClef', e.target.value as SightClef)}>
@@ -319,13 +336,16 @@ export function SightRead({ data, update }: Props) {
         <label title="Mostly steps and skips, like real melodies, instead of leaping anywhere">
           <input type="checkbox" checked={settings.melodic} onChange={(e) => set('melodic', e.target.checked)} /> Stepwise
         </label>
-        <span className="spacer" />
-        <button onClick={() => setRound((r) => r + 1)}>New phrase</button>
+        <button className="primary" onClick={() => setShowOptions(false)}>
+          Done
+        </button>
       </div>
+      )}
 
+      <div className="phrase-area">
       <PhraseStaff phrase={phrase} events={events} marks={marks} />
-
-      {result ? (
+      {result && (
+        <div className="result-overlay">
         <div className="panel result">
           <h3>{result.clean === result.events ? 'Clean run! ✨' : `${Math.round((100 * result.clean) / result.events)}% right${tempo ? ' and on time' : ' first time'}`}</h3>
           {result.timing ? (
@@ -353,10 +373,14 @@ export function SightRead({ data, update }: Props) {
             </button>
           </div>
         </div>
-      ) : (
-        <div className="feedback">
+        </div>
+      )}
+      </div>
+        <div className="feedback status">
           <span className="muted">
-            {tempo
+            {result
+              ? 'Space or Enter for the next phrase'
+              : tempo
               ? running
                 ? countIn
                   ? 'Count-in…'
@@ -365,14 +389,6 @@ export function SightRead({ data, update }: Props) {
               : `${cursor + 1} of ${events.length}${target.length > 1 ? ` · play ${target.length} notes together` : ''} · keep your eyes on the music`}
           </span>
         </div>
-      )}
-
-      <Piano
-        showLabels={settings.showKeyLabels}
-        held={held}
-        wrong={wrong}
-        focus={Math.round((Math.min(...target) + Math.max(...target)) / 2)}
-      />
     </div>
   );
 }

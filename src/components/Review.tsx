@@ -8,11 +8,10 @@ import { autoGrade } from '../srs/grading';
 import { type CardState, formatDelay, type Grade, GRADE_LABELS, schedule } from '../srs/scheduler';
 import { countQueue, pickNext, type QueuePick } from '../srs/session';
 import { type AppData, dayKey } from '../storage';
-import { useHeldNotes, useNoteEvents } from '../hooks';
+import { useNoteEvents, useShowOnKeyboard } from '../hooks';
 import { CardStaff } from './Staff';
 import { RhythmTrial } from './RhythmTrial';
 import { describeTaps, type TapResult } from '../music/rhythm';
-import { Piano } from './Piano';
 
 interface Props {
   data: AppData;
@@ -30,7 +29,6 @@ interface Undo {
 }
 
 export function Review({ data, update, onChooseDecks }: Props) {
-  const held = useHeldNotes();
   const [pick, setPick] = useState<QueuePick | null>(null);
   const [phase, setPhase] = useState<Phase>('question');
   const [wrongNotes, setWrongNotes] = useState<number[]>([]);
@@ -39,6 +37,8 @@ export function Review({ data, update, onChooseDecks }: Props) {
   const [detail, setDetail] = useState('');
   const [undo, setUndo] = useState<Undo | null>(null);
   const [reviewedNow, setReviewedNow] = useState(0);
+  // Show the right keys on the keyboard after a wrong answer.
+  useShowOnKeyboard(pick && phase === 'wrong' ? pick.card.notes.map(toMidi) : [], wrongNotes);
   const shownAt = useRef(0);
   const matcher = useRef<AttemptMatcher | null>(null);
   const advanceTimer = useRef<number | undefined>(undefined);
@@ -182,6 +182,7 @@ export function Review({ data, update, onChooseDecks }: Props) {
         d.courses[COURSES[0].id] ??= { start: 0, unlocked: 0 };
       });
     return (
+      <div className="stage center">
       <div className="panel empty onboarding">
         <h2>What would you like to learn?</h2>
         <div className="choices">
@@ -195,6 +196,7 @@ export function Review({ data, update, onChooseDecks }: Props) {
           </button>
         </div>
       </div>
+      </div>
     );
   }
 
@@ -203,6 +205,7 @@ export function Review({ data, update, onChooseDecks }: Props) {
       .filter((s) => s.status !== 'new' && cards.some((c) => c.id === s.id))
       .reduce((m, s) => Math.min(m, s.due), Infinity);
     return (
+      <div className="stage center">
       <div className="panel empty">
         <h2>All done for now 🎉</h2>
         <p>{reviewedNow ? `You reviewed ${reviewedNow} card${reviewedNow === 1 ? '' : 's'} this session.` : 'Nothing is due.'}</p>
@@ -213,34 +216,34 @@ export function Review({ data, update, onChooseDecks }: Props) {
           {undo && <button onClick={doUndo}>Undo last</button>}
         </div>
       </div>
+      </div>
     );
   }
 
-  const target = targetMidi(pick.card);
   const color = phase === 'correct' ? COLORS.ok : phase === 'wrong' ? COLORS.miss : undefined;
   const preview = (g: Grade) => formatDelay(schedule(pick.state, g, Date.now()).due - Date.now());
 
   return (
-    <div className="review">
+    <div className="stage review">
+      <div className="stage-main">
+        {pick.card.rhythm ? (
+          <RhythmTrial pattern={pick.card.rhythm} bpm={data.settings.rhythmBpm} latencyMs={data.settings.latencyMs} onDone={onRhythmDone} />
+        ) : (
+          <CardStaff card={pick.card} color={color} />
+        )}
+      </div>
+      <aside className="side">
       <div className="counts">
         <span className="c-new" title="New">{counts.newCount}</span>
         <span className="c-learn" title="Learning">{counts.learning}</span>
         <span className="c-review" title="Review">{counts.review}</span>
         {pick.isNew && <span className="badge">new card</span>}
-        {activeCourses.map((t) => (
-          <span key={t} className="muted small course-pos">
-            {t}
-          </span>
-        ))}
-        <span className="spacer" />
-        {undo && phase === 'question' && <button className="small" onClick={doUndo}>Undo</button>}
       </div>
-
-      {pick.card.rhythm ? (
-        <RhythmTrial pattern={pick.card.rhythm} bpm={data.settings.rhythmBpm} latencyMs={data.settings.latencyMs} onDone={onRhythmDone} />
-      ) : (
-        <CardStaff card={pick.card} color={color} />
-      )}
+      {activeCourses.map((t) => (
+        <p key={t} className="muted small course-pos">
+          {t}
+        </p>
+      ))}
 
       <div className={`feedback ${phase}`}>
         {phase === 'question' && !pick.card.rhythm && (
@@ -277,13 +280,13 @@ export function Review({ data, update, onChooseDecks }: Props) {
         </div>
       )}
 
-      <Piano
-        showLabels={data.settings.showKeyLabels}
-        held={held}
-        answer={phase === 'wrong' ? target : []}
-        wrong={wrongNotes}
-        focus={target.length ? Math.round((Math.min(...target) + Math.max(...target)) / 2) : 60}
-      />
+      <span className="spacer" />
+      {undo && phase === 'question' && (
+        <button className="small undo" onClick={doUndo}>
+          Undo last answer
+        </button>
+      )}
+      </aside>
     </div>
   );
 }

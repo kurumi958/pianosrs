@@ -21,14 +21,48 @@ export function useMidiStatus(): MidiStatus {
   return s;
 }
 
-export function useElementWidth<T extends HTMLElement>(): [React.RefObject<T | null>, number] {
+export function useElementSize<T extends HTMLElement>(): [React.RefObject<T | null>, { width: number; height: number }] {
   const ref = useRef<T>(null);
-  const [w, setW] = useState(0);
+  const [size, setSize] = useState({ width: 0, height: 0 });
   useEffect(() => {
     if (!ref.current) return;
-    const ro = new ResizeObserver(([entry]) => setW(Math.round(entry.contentRect.width)));
+    const ro = new ResizeObserver(([entry]) =>
+      setSize({ width: Math.round(entry.contentRect.width), height: Math.round(entry.contentRect.height) }),
+    );
     ro.observe(ref.current);
     return () => ro.disconnect();
   }, []);
-  return [ref, w];
+  return [ref, size];
+}
+
+// Keys to highlight on the shared keyboard. The keyboard lives in the app shell so it never moves between
+// screens; screens publish what it should show.
+export interface KeyMarks {
+  answer: number[];
+  wrong: number[];
+}
+const NO_MARKS: KeyMarks = { answer: [], wrong: [] };
+let keyMarks = NO_MARKS;
+const markListeners = new Set<(m: KeyMarks) => void>();
+function setKeyMarks(m: KeyMarks) {
+  keyMarks = m;
+  markListeners.forEach((l) => l(m));
+}
+
+/** Show these keys on the keyboard while the calling screen is mounted. */
+export function useShowOnKeyboard(answer: number[], wrong: number[]): void {
+  const key = `${answer.join(',')}|${wrong.join(',')}`;
+  useEffect(() => setKeyMarks({ answer, wrong }), [key]);
+  useEffect(() => () => setKeyMarks(NO_MARKS), []);
+}
+
+export function useKeyMarks(): KeyMarks {
+  const [m, setM] = useState(keyMarks);
+  useEffect(() => {
+    markListeners.add(setM);
+    return () => {
+      markListeners.delete(setM);
+    };
+  }, []);
+  return m;
 }

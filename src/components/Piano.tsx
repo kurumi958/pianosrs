@@ -1,4 +1,3 @@
-import { useEffect, useRef } from 'react';
 import { hub } from '../midi/input';
 import { isBlackKey, midiName } from '../music/notes';
 
@@ -8,31 +7,23 @@ interface Props {
   answer?: number[];
   /** Keys to mark as wrongly played. */
   wrong?: number[];
-  low?: number;
-  high?: number;
-  /** Scroll so that this note is visible. */
-  focus?: number;
   /** Label the C keys. Off by default: reading should come from the staff, not the keyboard. */
   showLabels?: boolean;
 }
 
-const WHITE_W = 28;
-
-/** Clickable on-screen piano used as a fallback input and to show answers. */
 /** Full 88-key range: A0 (21) to C8 (108). */
-export function Piano({ held, answer = [], wrong = [], low = 21, high = 108, focus, showLabels = false }: Props) {
-  const scroller = useRef<HTMLDivElement>(null);
-  const whites: number[] = [];
-  for (let n = low; n <= high; n++) if (!isBlackKey(n)) whites.push(n);
-  const xOf = (n: number) => whites.indexOf(n) * WHITE_W;
+const LOW = 21;
+const HIGH = 108;
+const WHITES: number[] = [];
+for (let n = LOW; n <= HIGH; n++) if (!isBlackKey(n)) WHITES.push(n);
+const WHITE_W = 100 / WHITES.length; // percent of the keyboard width
+const BLACK_W = WHITE_W * 0.6;
 
-  useEffect(() => {
-    const el = scroller.current;
-    if (!el || focus === undefined) return;
-    const white = isBlackKey(focus) ? focus - 1 : focus;
-    el.scrollTo({ left: xOf(white) - el.clientWidth / 2, behavior: 'smooth' });
-  }, [focus]);
-
+/**
+ * The whole 88-key keyboard, always spanning the full width, so every key stays in the same place
+ * whatever note is being played. Clickable as a fallback input, and used to show answers.
+ */
+export function Piano({ held, answer = [], wrong = [], showLabels = false }: Props) {
   const press = (note: number) => (ev: React.PointerEvent) => {
     ev.preventDefault();
     // Touch input captures the pointer implicitly; release it so pointerleave fires when sliding off a key.
@@ -44,24 +35,18 @@ export function Piano({ held, answer = [], wrong = [], low = 21, high = 108, foc
     if (hub.held.has(note)) hub.emit({ type: 'off', note, velocity: 0, source: 'screen' });
   };
 
-  const cls = (n: number) =>
-    [
-      'key',
-      isBlackKey(n) ? 'black' : 'white',
-      held.has(n) ? 'held' : '',
-      answer.includes(n) ? 'answer' : '',
-      wrong.includes(n) ? 'wrong' : '',
-    ].join(' ');
-
   const keys = [];
-  for (let n = low; n <= high; n++) {
+  for (let n = LOW; n <= HIGH; n++) {
     const black = isBlackKey(n);
-    const left = black ? xOf(n - 1) + WHITE_W - 9 : xOf(n);
+    const left = black ? (WHITES.indexOf(n - 1) + 1) * WHITE_W - BLACK_W / 2 : WHITES.indexOf(n) * WHITE_W;
+    const cls = ['key', black ? 'black' : 'white', held.has(n) && 'held', answer.includes(n) && 'answer', wrong.includes(n) && 'wrong']
+      .filter(Boolean)
+      .join(' ');
     keys.push(
       <div
         key={n}
-        className={cls(n)}
-        style={{ left }}
+        className={cls}
+        style={{ left: `${left}%`, width: `${black ? BLACK_W : WHITE_W}%` }}
         title={midiName(n)}
         onPointerDown={press(n)}
         onPointerUp={release(n)}
@@ -72,10 +57,8 @@ export function Piano({ held, answer = [], wrong = [], low = 21, high = 108, foc
     );
   }
   return (
-    <div className="piano-scroll" ref={scroller}>
-      <div className="piano" style={{ width: whites.length * WHITE_W }}>
-        {keys}
-      </div>
+    <div className="piano" aria-label="Keyboard">
+      {keys}
     </div>
   );
 }

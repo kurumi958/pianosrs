@@ -29,6 +29,9 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   octave) and *reading in sharp / flat keys* (the notes a signature alters, key by key up to six sharps or flats). Cards are
   shared by id between decks and the course, so a note learned in one counts in the other.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
+- Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
+  the middle, and the whole 88-key keyboard is docked along the bottom at full width, so keys never move. The full-screen
+  button also locks phones and tablets to landscape where supported; held upright, they show a prompt to rotate.
 - Built for an 88-key piano. The on-screen piano shows all 88 keys, unlabelled by default so you read the staff rather than
   the keyboard (C labels can be turned on in Settings).
 - No MIDI? The clickable on-screen piano and the computer keyboard (`A`–`;` white keys, `W E T Y U O P` black keys,

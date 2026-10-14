@@ -1246,3 +1246,54 @@ textarea.text-input {
   background: var(--crown);
   color: var(--crown-ink);
 }
+
+/* Stats: retention. */
+.retention {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.retention-heads {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.table-wrap {
+  overflow-x: auto;
+}
+.retention-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.92rem;
+}
+.retention-table th,
+.retention-table td {
+  text-align: left;
+  padding: 7px 10px;
+  border-top: 1px solid var(--line);
+}
+.retention-table thead th {
+  border-top: none;
+  font: 600 0.72rem var(--sans);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.retention-table tbody th {
+  font-weight: 500;
+  color: var(--ink-2);
+}
+.retention-table td small {
+  margin-left: 8px;
+  color: var(--muted);
+  font: 0.78rem var(--mono);
+}
+.retention-table td.good .num {
+  color: var(--sage);
+}
+.retention-table td.fair .num {
+  color: var(--amber);
+}
+.retention-table td.low .num {
+  color: var(--brick);
+}

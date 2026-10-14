@@ -1,5 +1,6 @@
 import { CARD_BY_ID, cardLabel, STAFF_LABEL } from '../srs/deck';
 import { GRADE_LABELS, retrievability } from '../srs/scheduler';
+import { MATURE_DAYS, rate, retentionTable, type Tally } from '../srs/retention';
 import { type AppData, dayKey, nextDayStart } from '../storage';
 
 const DAY = 86_400_000;
@@ -40,6 +41,19 @@ export function Stats({ data }: { data: AppData }) {
   const recalls = fsrsOn ? states.map((s) => retrievability(s, now, srs)).filter((r): r is number => r !== null) : [];
   const recallNow = recalls.length ? recalls.reduce((a, r) => a + r, 0) / recalls.length : null;
 
+  const retention = retentionTable(data.log, now);
+  const month = retention.find((r) => r.label === 'Last 30 days')!;
+  const pct = (t: Tally) => {
+    const r = rate(t);
+    return r === null ? '–' : `${Math.round(r * 100)}%`;
+  };
+  // Colour against the target: at or above desired retention (90% for SM-2), a little under, or well under.
+  const target = fsrsOn ? srs.desiredRetention : 0.9;
+  const tone = (t: Tally) => {
+    const r = rate(t);
+    if (r === null) return '';
+    return r >= target ? 'good' : r >= target - 0.1 ? 'fair' : 'low';
+  };
   const gradeCounts = [1, 2, 3, 4].map((g) => todayLog.filter((l) => l.grade === g).length);
 
   return (
@@ -72,6 +86,55 @@ export function Stats({ data }: { data: AppData }) {
           </div>
         )}
       </div>
+
+      <section className="panel retention">
+        <h3>Retention</h3>
+        <p className="muted small">
+          How often you remember cards when they come up for review (anything but Again). <b>Learning</b> is cards still building up
+          (interval under {MATURE_DAYS} days); <b>Known</b> is mature cards ({MATURE_DAYS} days or more).
+          {fsrsOn && ` Your desired retention is ${Math.round(srs.desiredRetention * 100)}%.`}
+        </p>
+        <div className="retention-heads">
+          {(
+            [
+              ['Learning', month.young],
+              ['Known', month.mature],
+            ] as const
+          ).map(([name, t]) => (
+            <div className="stat" key={name}>
+              <b>{pct(t)}</b>
+              <span>
+                {name} · last 30 days{t.total ? ` · ${t.total} review${t.total === 1 ? '' : 's'}` : ''}
+              </span>
+            </div>
+          ))}
+        </div>
+        <div className="table-wrap">
+          <table className="retention-table">
+            <thead>
+              <tr>
+                <th scope="col">Period</th>
+                <th scope="col">Learning</th>
+                <th scope="col">Known</th>
+                <th scope="col">All reviews</th>
+              </tr>
+            </thead>
+            <tbody>
+              {retention.map((r) => (
+                <tr key={r.label}>
+                  <th scope="row">{r.label}</th>
+                  {[r.young, r.mature, r.all].map((t, i) => (
+                    <td key={i} className={tone(t)}>
+                      <span className="num">{pct(t)}</span>
+                      <small>{t.total ? `${t.passed}/${t.total}` : ''}</small>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <section className="panel">
         <h3>Due over the next week</h3>

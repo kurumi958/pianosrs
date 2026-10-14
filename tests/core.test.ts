@@ -12,10 +12,11 @@ import {
   newCardState,
   parseSteps,
   schedule,
+  type Grade,
   type SchedulerConfig,
 } from '../src/srs/scheduler';
 import { fillFsrsMemory, needsFsrsMemory } from '../src/srs/memory';
-import { dayKey, DEFAULT_SETTINGS, emptyData, nextDayStart, normalize, setDayStartHour } from '../src/storage';
+import { dayKey, DEFAULT_SETTINGS, emptyData, nextDayStart, normalize, type ReviewLogEntry, setDayStartHour } from '../src/storage';
 import { ALL_CARDS, CARD_BY_ID, cardLabel, DECK_GROUPS, DECKS } from '../src/srs/deck';
 import { pickNext, countQueue } from '../src/srs/session';
 import { AttemptMatcher } from '../src/midi/matcher';
@@ -34,6 +35,7 @@ import {
 } from '../src/music/phrase';
 import { autoGrade, limitEasy } from '../src/srs/grading';
 import { studyStreak, todayPlan } from '../src/srs/today';
+import { rate, retentionTable } from '../src/srs/retention';
 import { mulberry32 } from '../src/srs/deck';
 
 const MIN = 60_000;
@@ -199,6 +201,42 @@ describe('Known (new cards)', () => {
     const plan = todayPlan(d, t);
     expect(plan.reviewedToday).toBe(1);
     expect(plan.accuracy).toBe(0);
+  });
+});
+
+describe('retention', () => {
+  const now = new Date(2026, 9, 14, 12).getTime();
+  const entry = (daysAgo: number, grade: Grade, prevInterval: number, extra: Partial<ReviewLogEntry> = {}): ReviewLogEntry => ({
+    id: 'x',
+    t: now - daysAgo * DAY,
+    grade,
+    ms: 1000,
+    prevStatus: 'review',
+    prevInterval,
+    ...extra,
+  });
+  it('splits review answers into learning (young) and known (mature)', () => {
+    const log = [
+      entry(0, 3, 5),
+      entry(0, 1, 5),
+      entry(0, 3, 30),
+      entry(1, 4, 40),
+      entry(10, 1, 50),
+      entry(100, 3, 2),
+      // Left out: learning-step answers, Known, and old entries without card state.
+      entry(0, 3, 0, { prevStatus: 'learning' }),
+      entry(0, 3, 0, { prevStatus: 'new', known: true }),
+      { id: 'y', t: now, grade: 1 as const, ms: 900 },
+    ];
+    const rows = Object.fromEntries(retentionTable(log, now).map((r) => [r.label, r]));
+    expect(rows.Today.young).toEqual({ passed: 1, total: 2 });
+    expect(rows.Today.mature).toEqual({ passed: 1, total: 1 });
+    expect(rows.Yesterday.all).toEqual({ passed: 1, total: 1 });
+    expect(rows['Last 7 days'].all).toEqual({ passed: 3, total: 4 });
+    expect(rows['Last 30 days'].mature).toEqual({ passed: 2, total: 3 });
+    expect(rows['All time'].all).toEqual({ passed: 4, total: 6 });
+    expect(rate(rows.Today.young)).toBe(0.5);
+    expect(rate({ passed: 0, total: 0 })).toBeNull();
   });
 });
 

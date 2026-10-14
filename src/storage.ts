@@ -1,5 +1,5 @@
 import type { GrandStyle } from './music/phrase';
-import { type CardState, DEFAULT_SCHEDULER, type Grade, type SchedulerConfig } from './srs/scheduler';
+import { type CardState, type CardStatus, DEFAULT_SCHEDULER, type Grade, type SchedulerConfig } from './srs/scheduler';
 import type { CourseState } from './srs/study';
 
 /** "alternate" rotates through treble, bass and grand staff phrases. */
@@ -85,6 +85,9 @@ export interface ReviewLogEntry {
   ms: number;
   /** Set for the Good answers recorded when a new card is marked Known (not real answers). */
   known?: boolean;
+  /** The card's status and interval (days) just before this answer, for retention stats. */
+  prevStatus?: CardStatus;
+  prevInterval?: number;
 }
 
 export interface AppData {

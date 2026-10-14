@@ -94,7 +94,7 @@ export function Review({ data, update, onNavigate }: Props) {
       d.cards[p.card.id] = schedule(p.state, grade, now, d.settings.srs);
       if (p.isNew) d.newByDay[day] = (d.newByDay[day] ?? 0) + 1;
       if (wasReview) d.reviewsByDay[day] = (d.reviewsByDay[day] ?? 0) + 1;
-      d.log.push({ id: p.card.id, t: now, grade, ms: Math.round(ms) });
+      d.log.push({ id: p.card.id, t: now, grade, ms: Math.round(ms), prevStatus: p.state.status, prevInterval: p.state.interval });
     });
   };
 

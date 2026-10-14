@@ -1,5 +1,14 @@
 A prototype of PianoSRS as a desktop app. It's the same app as the web version, in its own window, with your progress saved on this computer.
 
+## New in 0.2.0
+
+- **Learn, then review.** New cards are learned in ungraded learning sessions: click a unit in Lessons, or *Learn* on a deck or song, and play through at your own pace. Review then shows only cards you've learned, grouped by lesson, deck and song.
+- **A new sidebar**: Home · Practice (Sight-read, Things to work on) · Learn (Lessons, Review) · Library (Decks, Songs) · You.
+- **The curriculum filled out**: a second course (*Late beginner to intermediate*, 20 units), 14 new decks, levels on every deck, and a custom deck builder.
+- **Lessons**: units show their cards and let you start the course anywhere.
+- **New logo**: the keyboard colonnade.
+- PDF transcription with an API key can zoom in on dense music (*Look closer*).
+
 ## Which file to download
 
 | Computer | File |

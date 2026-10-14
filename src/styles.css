@@ -936,14 +936,15 @@ main.play {
   flex: none;
 }
 .rhythm-trial .metronome svg {
-  height: min(30vh, 260px);
+  height: min(19vh, 150px);
   width: auto;
 }
 .play-side .metronome {
-  align-self: flex-start;
+  align-self: center;
+  margin: 4px 0;
 }
 .play-side .metronome svg {
-  height: min(18vh, 150px);
+  height: min(13vh, 108px);
   width: auto;
 }
 .metronome figcaption {
@@ -953,11 +954,11 @@ main.play {
   line-height: 1.15;
 }
 .metronome figcaption b {
-  font-size: 1.5rem;
+  font-size: 1.15rem;
   color: var(--ink);
 }
 .metronome figcaption span {
-  font-size: 0.75rem;
+  font-size: 0.68rem;
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--muted);

@@ -27,9 +27,9 @@ export function tempoMarking(bpm: number): string {
   return name;
 }
 
-const PIVOT = { x: 60, y: 122 };
-const ARM = 98;
-const SWING = 24; // degrees either side
+const PIVOT = { x: 50, y: 112 };
+const ARM = 92;
+const SWING = 22; // degrees either side
 
 interface Props {
   bpm: number;
@@ -46,7 +46,7 @@ export function Metronome({ bpm, start }: Props) {
   const beatMs = 60_000 / bpm;
   // Weight position along the arm: near the top at 40 BPM, near the pivot at 208.
   const t = Math.min(1, Math.max(0, (bpm - 40) / (208 - 40)));
-  const weightY = PIVOT.y - ARM + 10 + t * 62;
+  const weightY = PIVOT.y - ARM + 10 + t * 58;
 
   useEffect(() => {
     const el = arm.current;
@@ -67,50 +67,43 @@ export function Metronome({ bpm, start }: Props) {
   }, [start, beatMs]);
 
   // Scale ticks on the plate, wider apart towards the bottom like the printed scale.
-  const ticks = Array.from({ length: 11 }, (_, i) => 20 + 80 * Math.pow(i / 10, 0.8));
+  const ticks = Array.from({ length: 9 }, (_, i) => 17 + 76 * Math.pow(i / 8, 0.85));
 
   return (
     <figure className="metronome" aria-label={`Metronome, ${bpm} beats per minute`}>
-      <svg viewBox="0 0 120 168" role="img" aria-hidden="true">
+      <svg viewBox="0 0 100 132" role="img" aria-hidden="true">
         <defs>
           <linearGradient id="met-wood" x1="0" x2="1">
-            <stop offset="0" stopColor="#4a231c" />
-            <stop offset="0.45" stopColor="#6b3327" />
-            <stop offset="1" stopColor="#3d1c17" />
+            <stop offset="0" stopColor="#5a2a21" />
+            <stop offset="0.5" stopColor="#74392c" />
+            <stop offset="1" stopColor="#4d241d" />
           </linearGradient>
           <linearGradient id="met-steel" x1="0" x2="1">
-            <stop offset="0" stopColor="#9a9a9a" />
-            <stop offset="0.5" stopColor="#e8e6e2" />
-            <stop offset="1" stopColor="#a7a5a1" />
+            <stop offset="0" stopColor="#a3a19d" />
+            <stop offset="0.5" stopColor="#ecebe7" />
+            <stop offset="1" stopColor="#adaba6" />
           </linearGradient>
         </defs>
-        {/* Body and base */}
-        <path d="M44 6 H76 Q80 6 81 10 L104 136 H16 L39 10 Q40 6 44 6 Z" fill="url(#met-wood)" />
-        <rect x="10" y="128" width="100" height="36" rx="4" fill="#4a231c" />
-        <rect x="10" y="128" width="100" height="5" fill="#2f1612" opacity="0.6" />
+        {/* Body on a slim plinth */}
+        <path d="M41 4 H59 Q62 4 62.6 7 L81 120 H19 L37.4 7 Q38 4 41 4 Z" fill="url(#met-wood)" />
+        <rect x="14" y="119" width="72" height="9" rx="2.5" fill="#4d241d" />
         {/* Scale plate with gold ticks */}
-        <path d="M47 14 H73 L80 112 H40 Z" fill="#1d1513" />
+        <path d="M43 11 H57 L64 100 H36 Z" fill="#1d1513" />
         {ticks.map((y, i) => {
-          const half = 13 + (y - 14) * 0.2;
-          return <line key={i} x1={60 - half + 3} x2={60 - half + (i % 2 ? 7 : 10)} y1={y} y2={y} stroke="#d4aa5c" strokeWidth="1.2" />;
-        })}
-        {ticks.map((y, i) => {
-          const half = 13 + (y - 14) * 0.2;
-          return <line key={`r${i}`} x1={60 + half - 3} x2={60 + half - (i % 2 ? 7 : 10)} y1={y} y2={y} stroke="#d4aa5c" strokeWidth="1.2" />;
+          const half = 7 + (y - 11) * 0.08;
+          return (
+            <g key={i} stroke="#d4aa5c" strokeWidth="0.9">
+              <line x1={50 - half} x2={50 - half + (i % 2 ? 3 : 5)} y1={y} y2={y} />
+              <line x1={50 + half} x2={50 + half - (i % 2 ? 3 : 5)} y1={y} y2={y} />
+            </g>
+          );
         })}
         {/* Pendulum */}
         <g ref={arm}>
-          <rect x={PIVOT.x - 1.6} y={PIVOT.y - ARM} width="3.2" height={ARM} rx="1.4" fill="url(#met-steel)" />
-          <path
-            d={`M${PIVOT.x - 9} ${weightY} h18 l-2 16 q-7 4 -14 0 Z`}
-            fill="url(#met-steel)"
-            stroke="#7c7a76"
-            strokeWidth="0.6"
-          />
-          <line x1={PIVOT.x - 8} x2={PIVOT.x + 8} y1={weightY + 5} y2={weightY + 5} stroke="#8d8b87" strokeWidth="0.8" />
-          <line x1={PIVOT.x - 7.5} x2={PIVOT.x + 7.5} y1={weightY + 8} y2={weightY + 8} stroke="#8d8b87" strokeWidth="0.8" />
+          <rect x={PIVOT.x - 1.2} y={PIVOT.y - ARM} width="2.4" height={ARM} rx="1.2" fill="url(#met-steel)" />
+          <path d={`M${PIVOT.x - 6} ${weightY} h12 l-1.5 11 q-4.5 2.6 -9 0 Z`} fill="url(#met-steel)" stroke="#7c7a76" strokeWidth="0.5" />
         </g>
-        <circle cx={PIVOT.x} cy={PIVOT.y} r="3.2" fill="#2f1612" stroke="#d4aa5c" strokeWidth="1" />
+        <circle cx={PIVOT.x} cy={PIVOT.y} r="2.4" fill="#2f1612" stroke="#d4aa5c" strokeWidth="0.8" />
       </svg>
       <figcaption>
         <b className="num">{bpm}</b>

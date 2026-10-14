@@ -269,9 +269,13 @@ export function SightRead({ data, update }: Props) {
           )}
         </span>
       </div>
+      {tempo && (
+        <div className="side-block">
+          <Metronome bpm={settings.sightBpm} start={running ? running.start : null} />
+        </div>
+      )}
       <div className="side-block">
         <span className="eyebrow">Mode</span>
-        {tempo && <Metronome bpm={settings.sightBpm} start={running ? running.start : null} />}
         <span>{tempo ? 'In time' : 'Wait for me'}</span>
         <span className="muted small">
           {tempo ? 'A bar of count-in, then keep going with the metronome.' : 'The cursor waits for each right note.'}

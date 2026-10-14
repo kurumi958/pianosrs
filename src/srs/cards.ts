@@ -16,11 +16,40 @@ export interface Card {
   /**
    * "key": the card shows only a key signature and you answer with the key's tonic.
    * "rhythm": the card shows a one-bar rhythm you tap in time after a count-in.
+   * "passage": a few bars of a song to play through.
    */
-  prompt?: 'key' | 'rhythm';
+  prompt?: 'key' | 'rhythm' | 'passage';
   rhythm?: RhythmPattern;
+  passage?: Passage;
   /** Accept the answer in any octave. */
   anyOctave?: boolean;
+}
+
+/** Bars of a song to play, with one hand or both. */
+export interface Passage {
+  song: string;
+  /** Bar indices, inclusive (a pickup bar is index 0). */
+  from: number;
+  to: number;
+  hands: 'rh' | 'lh' | 'both';
+  /** For labels: the song's title and the bars as printed ("Bars 3–4"). */
+  title: string;
+  bars: string;
+}
+
+const HAND_NAME = { rh: 'right hand', lh: 'left hand', both: 'hands together' };
+
+/** A passage card: "song:minuet-g:3-4:rh" is bars 3–4 of the Minuet in G, right hand (bar indices from 1 here). */
+export function makePassageCard(p: Passage, key = 'C'): Card {
+  return {
+    id: `song:${p.song}:${p.from + 1}-${p.to + 1}:${p.hands}`,
+    staff: 'grand',
+    key,
+    notes: [],
+    hands: { treble: [], bass: [] },
+    prompt: 'passage',
+    passage: p,
+  };
 }
 
 const keyTag = (key: string) => (key === 'C' ? '' : `[${key}]`);
@@ -113,6 +142,7 @@ export function uniqueById(cards: Card[]): Card[] {
 
 export function cardLabel(card: Card): string {
   if (card.prompt === 'key') return keyLabel(card.key);
+  if (card.passage) return `${card.passage.title}: ${card.passage.bars}, ${HAND_NAME[card.passage.hands]}`;
   if (card.rhythm) return `${meterName(card.rhythm.meter)} rhythm (${rhythmSpec(card.rhythm)})`;
   const keyNote = card.key === 'C' ? '' : ` in ${keyLabel(card.key)}`;
   return baseLabel(card) + keyNote;

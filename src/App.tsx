@@ -13,8 +13,11 @@ import { Settings } from './components/Settings';
 import { WorkOn } from './components/WorkOn';
 import { Sidebar } from './components/Sidebar';
 import type { Focus } from './srs/weak';
+import { type SongFocus, Songs } from './components/Songs';
+import { SongPractice } from './components/SongPlay';
+import { loadImportedSongs, songById, syncSongDecks } from './songs/library';
 
-export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Stats' | 'Settings';
+export type Tab = 'Home' | 'Review' | 'Sight-read' | 'Work on' | 'Lessons' | 'Decks' | 'Songs' | 'Stats' | 'Settings';
 
 /** Screens you play on: these use the practice layout with the keyboard. */
 const PLAY_TABS: Tab[] = ['Review', 'Sight-read'];
@@ -111,14 +114,34 @@ export function App() {
     hub.soundForVirtual = data.settings.onscreenSound;
   }, [data.settings.midiInput, data.settings.onscreenSound]);
 
-  const playing = PLAY_TABS.includes(tab);
+  // Songs: the built-in ones are always there; imported ones load from the browser's database.
+  const [, setLibraryVersion] = useState(0);
+  const libraryChanged = useCallback(() => setLibraryVersion((v) => v + 1), []);
+  useEffect(() => {
+    loadImportedSongs().then(libraryChanged);
+  }, [libraryChanged]);
+  syncSongDecks(data.songs);
+  const [openSong, setOpenSong] = useState<string | null>(null);
+  const [songPractice, setSongPractice] = useState<SongFocus | null>(null);
+  const practiceSong = songPractice ? songById(songPractice.song) : undefined;
+  const practiceSongBars = (f: SongFocus) => {
+    setOpenSong(f.song);
+    setSongPractice(f);
+    setTab('Songs');
+  };
+  const navigate = (t: Tab) => {
+    setSongPractice(null);
+    setTab(t);
+  };
+
+  const playing = PLAY_TABS.includes(tab) || (tab === 'Songs' && !!practiceSong);
 
   return (
     <div className="app">
       <Sidebar
         data={data}
         tab={tab}
-        onNavigate={setTab}
+        onNavigate={navigate}
         collapsed={collapsed}
         onToggleCollapsed={toggleSidebar}
         fullscreen={fullscreen}
@@ -126,14 +149,17 @@ export function App() {
       />
 
       <main className={playing ? 'play' : 'page'}>
-        {tab === 'Home' && <Home data={data} update={update} onNavigate={setTab} />}
-        {tab === 'Review' && <Review data={data} update={update} onNavigate={setTab} />}
+        {tab === 'Home' && <Home data={data} update={update} onNavigate={navigate} />}
+        {tab === 'Review' && <Review data={data} update={update} onNavigate={navigate} />}
         {tab === 'Sight-read' && <SightRead data={data} update={update} focus={focus} onEndFocus={() => setFocus(null)} />}
         {tab === 'Work on' && (
           <WorkOn
             data={data}
             update={update}
             onPractice={(f) => {
+              // A song passage is practiced in its song; anything else in focused sight-reading.
+              const p = f.cards.find((c) => c.passage)?.passage;
+              if (p) return practiceSongBars({ song: p.song, from: p.from, to: p.to, hands: p.hands });
               setFocus(f);
               setTab('Sight-read');
             }}
@@ -141,6 +167,21 @@ export function App() {
         )}
         {tab === 'Lessons' && <Lessons data={data} update={update} />}
         {tab === 'Decks' && <Decks data={data} update={update} />}
+        {tab === 'Songs' &&
+          (practiceSong && songPractice ? (
+            <SongPractice
+              key={`${songPractice.song}:${songPractice.from}:${songPractice.to}:${songPractice.hands}`}
+              data={data}
+              update={update}
+              song={practiceSong}
+              from={songPractice.from}
+              to={songPractice.to}
+              hands={songPractice.hands}
+              onClose={() => setSongPractice(null)}
+            />
+          ) : (
+            <Songs data={data} update={update} openSong={openSong} onOpen={setOpenSong} onPractice={practiceSongBars} onLibraryChange={libraryChanged} />
+          ))}
         {tab === 'Stats' && <Stats data={data} />}
         {tab === 'Settings' && <Settings data={data} update={update} replace={replace} />}
       </main>

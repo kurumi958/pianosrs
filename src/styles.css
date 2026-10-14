@@ -1599,3 +1599,164 @@ textarea.text-input {
 .focus-block button {
   align-self: flex-start;
 }
+
+/* Songs: engraved scores (OpenSheetMusicDisplay), the song library and each song's bar strip. */
+.score-view {
+  width: 100%;
+  min-width: 0;
+}
+.score-view.box {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+.score-view.box .score-host {
+  flex: none;
+}
+.score-panel {
+  background: var(--score);
+  overflow-x: auto;
+}
+.song-list {
+  list-style: none;
+  margin: 10px 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+}
+.song-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 14px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--sheet);
+  color: var(--ink);
+  text-align: left;
+}
+.song-card:hover {
+  border-color: var(--line-strong);
+  background: color-mix(in srgb, var(--sheet) 60%, var(--sheet-2));
+}
+.song-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.song-text b {
+  font-family: var(--display);
+  font-size: 1.08rem;
+}
+.song-text small {
+  color: var(--ink-2);
+}
+.song-text small.muted {
+  color: var(--muted);
+}
+.song-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+.level {
+  font: 600 0.7rem var(--sans);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: var(--gold-soft);
+  color: var(--gold);
+}
+.level.l1 {
+  background: color-mix(in srgb, var(--sage) 16%, transparent);
+  color: var(--sage);
+}
+.level.l3 {
+  background: var(--crown-wash);
+  color: var(--crown);
+}
+.song-page .back {
+  align-self: flex-start;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.row.spread {
+  justify-content: space-between;
+}
+.opt.inline {
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
+}
+.bar-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.bar-cell {
+  display: inline-grid;
+  place-items: center;
+  min-width: 34px;
+  height: 30px;
+  padding: 0 6px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--sheet);
+  color: var(--ink-2);
+  font: 500 0.8rem var(--mono);
+}
+button.bar-cell:hover {
+  border-color: var(--crown);
+  color: var(--crown);
+}
+.bar-cell.started {
+  background: var(--gold-soft);
+  border-color: color-mix(in srgb, var(--gold) 50%, transparent);
+}
+.bar-cell.learned {
+  background: color-mix(in srgb, var(--sage) 22%, var(--sheet));
+  border-color: color-mix(in srgb, var(--sage) 50%, transparent);
+  color: var(--ink);
+}
+.bar-cell.weak {
+  box-shadow: inset 0 -3px 0 var(--brick);
+}
+.legend {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.legend .bar-cell {
+  min-width: 14px;
+  width: 14px;
+  height: 14px;
+  padding: 0;
+}
+.bar-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.chip {
+  padding: 2px 9px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  background: var(--sheet);
+  font: 500 0.8rem var(--mono);
+  color: var(--ink-2);
+}
+.chip:hover {
+  border-color: var(--crown);
+  color: var(--crown);
+}

@@ -14,6 +14,8 @@ import { CardStaff } from './Staff';
 import { PlayScreen } from './PlayScreen';
 import { RhythmTrial } from './RhythmTrial';
 import { describeTaps, type TapResult } from '../music/rhythm';
+import { songById } from '../songs/library';
+import { PassageTrial, recordBars } from './SongPlay';
 
 interface Props {
   data: AppData;
@@ -128,8 +130,25 @@ export function Review({ data, update, onNavigate }: Props) {
     advanceTimer.current = window.setTimeout(() => setPick(null), Math.max(1200, beatMs * 2));
   };
 
+  /** Passage cards grade themselves at the end of the passage. */
+  const onPassageDone = (passageGrade: Grade, summary: string, ms: number, outcomes: Map<number, boolean>) => {
+    if (!pick?.card.passage || phase !== 'question') return;
+    const songId = pick.card.passage.song;
+    setLastMs(ms);
+    setChosen(passageGrade);
+    setDetail(summary);
+    update((d) => recordBars(d, songId, outcomes));
+    if (passageGrade === 1) {
+      setPhase('wrong');
+      return;
+    }
+    setPhase('correct');
+    commit(pick, passageGrade, ms);
+    advanceTimer.current = window.setTimeout(() => setPick(null), 1400);
+  };
+
   useNoteEvents((e) => {
-    if (e.type !== 'on' || !pick || !matcher.current || pick.card.rhythm) return;
+    if (e.type !== 'on' || !pick || !matcher.current || pick.card.rhythm || pick.card.passage) return;
     const result = matcher.current.noteOn(e.note);
     if (phase === 'question') {
       const ms = performance.now() - shownAt.current;
@@ -329,6 +348,10 @@ export function Review({ data, update, onNavigate }: Props) {
     phase === 'question' ? (
       pick.card.rhythm ? (
         ''
+      ) : pick.card.passage ? (
+        `${pick.card.passage.title}: play ${pick.card.passage.bars.toLowerCase()}, ${
+          pick.card.passage.hands === 'both' ? 'hands together' : pick.card.passage.hands === 'rh' ? 'right hand' : 'left hand'
+        }`
       ) : pick.card.prompt === 'key' ? (
         `Which ${isMinor(pick.card.key) ? 'minor' : 'major'} key is this? Play its tonic in any octave`
       ) : (
@@ -337,9 +360,9 @@ export function Review({ data, update, onNavigate }: Props) {
     ) : phase === 'correct' && markedKnown ? (
       <>✓ Marked as known. It'll come back in {knownPreview} to check.</>
     ) : phase === 'correct' ? (
-      <>✓ {pick.card.rhythm ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`}</>
-    ) : pick.card.rhythm ? (
-      <>✗ Not quite: {detail}. Continue, or tap any key to practice it again.</>
+      <>✓ {pick.card.rhythm || pick.card.passage ? detail : `${cardLabel(pick.card)} · ${(lastMs / 1000).toFixed(1)}s`}</>
+    ) : pick.card.rhythm || pick.card.passage ? (
+      <>✗ Not quite: {detail}. Continue, or play any key to practice it again.</>
     ) : (
       <>
         ✗ You played {wrongNotes.map(midiName).join(', ')}, it's <b>{cardLabel(pick.card)}</b>. Play it to continue.
@@ -353,6 +376,15 @@ export function Review({ data, update, onNavigate }: Props) {
       music={
         pick.card.rhythm ? (
           <RhythmTrial pattern={pick.card.rhythm} bpm={data.settings.rhythmBpm} latencyMs={data.settings.latencyMs} onDone={onRhythmDone} />
+        ) : pick.card.passage && songById(pick.card.passage.song) ? (
+          <PassageTrial
+            key={pick.card.id + reviewedNow}
+            song={songById(pick.card.passage.song)!}
+            passage={pick.card.passage}
+            status={pick.state.status}
+            data={data}
+            onDone={onPassageDone}
+          />
         ) : (
           <CardStaff card={pick.card} color={color} />
         )

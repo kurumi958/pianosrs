@@ -1,6 +1,7 @@
 import {
   BookOpen,
   ChartColumn,
+  FileMusic,
   Flame,
   GraduationCap,
   House,
@@ -43,6 +44,7 @@ const SECTIONS: { title: string; items: { tab: Tab; icon: Icon }[] }[] = [
     items: [
       { tab: 'Lessons', icon: GraduationCap },
       { tab: 'Decks', icon: BookOpen },
+      { tab: 'Songs', icon: FileMusic },
     ],
   },
   {

@@ -23,3 +23,17 @@ export function autoGrade(correct: boolean, ms: number, noteCount: number, cfg: 
 export function limitEasy(grade: Grade, status: CardStatus, easyWhileLearning: boolean): Grade {
   return grade === 4 && !easyWhileLearning && status !== 'review' ? 3 : grade;
 }
+
+/**
+ * Grade a played-through passage. Mistakes decide it: more than one in ten notes (and more than one) is Again,
+ * any at all is Hard. A clean run is Good, or Easy if it flowed: no stop longer than `easyMs` × 1.5 between notes,
+ * and none longer than `goodMs` (a long stop makes even a clean run Hard).
+ */
+export function gradePassage(events: number, wrongEvents: number, gapsMs: number[], cfg: GradingConfig): Grade {
+  if (wrongEvents > Math.max(1, Math.floor(events / 10))) return 1;
+  if (wrongEvents > 0) return 2;
+  const longest = Math.max(0, ...gapsMs);
+  if (longest > cfg.goodMs) return 2;
+  if (longest <= cfg.easyMs * 1.5) return 4;
+  return 3;
+}

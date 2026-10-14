@@ -1,3 +1,4 @@
+import type { SongOptions } from './songs/library';
 import type { GrandStyle } from './music/phrase';
 import type { SightStat } from './srs/weak';
 import { type CardState, type CardStatus, DEFAULT_SCHEDULER, type Grade, type SchedulerConfig } from './srs/scheduler';
@@ -105,6 +106,10 @@ export interface AppData {
   reviewsByDay: Record<string, number>;
   /** Sight-reading record per card: recent misses and the keys played instead. */
   sightStats: Record<string, SightStat>;
+  /** How each song is split into flash cards, by song id. */
+  songs: Record<string, SongOptions>;
+  /** Recent play-throughs of each song's bars (1 = a mistake, 0 = clean), by song id and bar index. */
+  songBars: Record<string, Record<number, number[]>>;
   log: ReviewLogEntry[];
 }
 
@@ -112,7 +117,18 @@ const KEY = 'pianosrs:v1';
 const MAX_LOG = 20_000;
 
 export function emptyData(): AppData {
-  return { version: 1, cards: {}, settings: { ...DEFAULT_SETTINGS, srs: { ...DEFAULT_SRS } }, courses: {}, newByDay: {}, reviewsByDay: {}, sightStats: {}, log: [] };
+  return {
+    version: 1,
+    cards: {},
+    settings: { ...DEFAULT_SETTINGS, srs: { ...DEFAULT_SRS } },
+    courses: {},
+    newByDay: {},
+    reviewsByDay: {},
+    sightStats: {},
+    songs: {},
+    songBars: {},
+    log: [],
+  };
 }
 
 export function loadData(): AppData {
@@ -146,6 +162,8 @@ export function normalize(raw: unknown): AppData {
     newByDay: d.newByDay ?? {},
     reviewsByDay: d.reviewsByDay ?? {},
     sightStats: d.sightStats ?? {},
+    songs: d.songs ?? {},
+    songBars: d.songBars ?? {},
     log: d.log ?? [],
   };
 }

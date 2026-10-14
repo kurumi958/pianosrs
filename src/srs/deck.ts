@@ -30,8 +30,8 @@ export interface DeckDef {
   id: string;
   name: string;
   description: string;
-  /** Topic decks drill one skill; a course is a sequence of units that unlock as you progress. */
-  kind: 'topic' | 'course';
+  /** Topic decks drill one skill; a course is a sequence of units that unlock as you progress; a song deck learns a piece. */
+  kind: 'topic' | 'course' | 'song';
   /** All cards, in introduction order. */
   cards: Card[];
   units?: CourseUnit[];
@@ -488,6 +488,22 @@ export const DECKS: DeckDef[] = [...COURSES, ...TOPIC_DECKS].map((d) => ({
   units: d.units?.map((u) => ({ ...u, cards: canonical(u.cards) })),
 }));
 
+
+/**
+ * Replace the song decks (ids starting "song:") with these. Songs are added at run time (the built-in ones and any
+ * you import), and their cards depend on how each song is split up, so their decks are swapped in whole.
+ */
+export function setSongDecks(decks: DeckDef[]): void {
+  for (let i = DECKS.length - 1; i >= 0; i--) {
+    if (!DECKS[i].id.startsWith('song:')) continue;
+    for (const c of DECKS[i].cards) CARD_BY_ID.delete(c.id);
+    DECKS.splice(i, 1);
+  }
+  for (const d of decks) {
+    DECKS.push(d);
+    for (const c of d.cards) CARD_BY_ID.set(c.id, c);
+  }
+}
 
 /** Courses, with their cards resolved to the shared card objects. */
 export const COURSE_DECKS: DeckDef[] = DECKS.filter((d) => d.kind === 'course');

@@ -43,6 +43,16 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   tend to play instead) and flash cards you keep forgetting (6+ lapses by default, until they go 60 days without one).
   *Practice* builds sight-reading phrases around them: weak items come up far more often, in their own key, staff and
   rhythm, mixed with notes you know. Forgotten cards can also be brought back for review today.
+- **Songs**: learn real pieces a few bars at a time. Nine public-domain songs are included, from *Mary Had a Little Lamb*
+  and *Ode to Joy* through the *Minuet in G*, *Greensleeves*, *Für Elise*, *Gymnopédie No. 1*, Bach's *Prelude in C* and the
+  opening of the *Moonlight Sonata* (excerpts and simplified arrangements say so), and you can import any score as MusicXML
+  (.musicxml, .xml or compressed .mxl, as exported by MuseScore, Sibelius, Finale or Dorico, or downloaded from MuseScore.com or
+  IMSLP). Scores are engraved with [OpenSheetMusicDisplay](https://opensheetmusicdisplay.org/). *Learn this song* turns it into
+  passage flash cards in Review: each passage (1, 2, 4 or 8 bars) right hand, left hand, then hands together, then joined to
+  the passage before, and finally the whole song. Passages grade themselves: more than one slip in ten notes is Again, any
+  slip is Hard, a clean run is Good, and a clean run without hesitating is Easy. You can also practice any bars, either hand,
+  waiting for you or in time with a count-in and metronome; the bar strip shows which bars are learned and which keep tripping
+  you up. Repeats are read once, as written; grace notes aren't judged.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
   the middle, and the whole 88-key keyboard is docked along the bottom at full width, so keys never move. The full-screen
@@ -52,7 +62,8 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
 - No MIDI? The clickable on-screen piano and the computer keyboard (`A`–`;` white keys, `W E T Y U O P` black keys,
   `Z`/`X` change octave) both work.
 
-Progress is saved in the browser's `localStorage`. Use *Settings → Export backup* to move it between devices.
+Progress is saved in the browser's `localStorage`. Use *Settings → Export backup* to move it between devices. Imported songs
+are kept in the browser's IndexedDB (scores are too big for localStorage) and aren't part of the backup, so keep your files.
 
 ## Running
 
@@ -80,6 +91,8 @@ start a test again. A quick run-through:
    that many milliseconds.
 5. **Sight-read** in both modes, on the grand staff, with *Learned rhythms* on, and try *In time* at a slow tempo.
 6. In **Lessons**, answer the test course's first unit with quick right answers: unit 2 should open.
+7. **Songs**: open *Ode to Joy*, click bar 1 and play it hands together, then try *In time*. Turn on *Learn this song* and the
+   passages appear in Review.
 
 ## Android
 
@@ -111,6 +124,11 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 | `src/music/tempo.ts` | Judges a phrase played in time |
 | `src/midi/metronome.ts` | Metronome clicks on the Web Audio clock |
 | `src/music/phrase.ts` | Sight-reading phrases (single staff or two-handed), events to play, accidentals |
+| `src/songs/musicxml.ts` | Reads MusicXML (and .mxl) into notes with bars, timing, staves and ties |
+| `src/songs/dsl.ts` | The compact notation the included songs are written in, compiled to the score model and MusicXML |
+| `src/songs/corpus.ts` | The included songs |
+| `src/songs/library.ts` | Song library (included + imported in IndexedDB) and song decks of passage cards |
+| `src/songs/play.ts` | Note colours while playing, tie chains, bars to work on |
 | `src/components/*` | React screens |
 
 ## Ideas for later
@@ -119,7 +137,8 @@ through one hub (`src/midi/input.ts`), so that plugin only has to call
 - Smaller keyboards (25–61 keys): fit cards and phrases to the instrument's range (today there is only an "any octave" fallback)
 - Optimising FSRS parameters from your own review history (today: paste them from Anki)
 - Per-deck scheduling presets, leeches and suspending cards
-- Minor keys
-- Ties, sixteenth notes, triplets, 6/8; judging note lengths (releases), not just onsets
+- Judging note lengths (releases), not just onsets; pedalling
+- Songs: playing repeats and voltas as performed; a bigger CC0 corpus (OpenScore, Mutopia); looping a passage while
+  speeding it up
 - Cloud sync between devices
 - Native Android build with a MIDI bridge plugin (see above)

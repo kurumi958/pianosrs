@@ -8,6 +8,7 @@ import type { Passage } from '../srs/cards';
 import type { CardStatus, Grade } from '../srs/scheduler';
 import type { Song } from '../songs/library';
 import { BAR_HISTORY, barOutcomes, type PlayState, playColors, tieChains, weakBars } from '../songs/play';
+import { barsPerLine, pagesOf, pageAt, TURN_AT_LABEL, type TurnAt, turnTick } from '../songs/pages';
 import { barsLabel, type Hands, HANDS_LABEL, scoreEvents } from '../songs/score';
 import type { AppData } from '../storage';
 import { useNoteEvents, useShowOnKeyboard } from '../hooks';
@@ -49,7 +50,9 @@ function usePassagePlay({ song, from, to, hands, mode, bpm, latencyMs, ignoreOct
   const [ok, setOk] = useState<Set<number> | undefined>(undefined);
   const [wrong, setWrong] = useState<number[]>([]);
   const [done, setDone] = useState(false);
-  const [running, setRunning] = useState<{ start: number; judge: TempoJudge; countInEnd: number } | null>(null);
+  const [running, setRunning] = useState<{ start: number; judge: TempoJudge; countInEnd: number; lead: number; zero: number; shift: number } | null>(
+    null,
+  );
   const [countIn, setCountIn] = useState(false);
   // Read by key presses, which can come faster than renders: refs, mirrored into state for drawing.
   const cursorRef = useRef(0);
@@ -58,6 +61,8 @@ function usePassagePlay({ song, from, to, hands, mode, bpm, latencyMs, ignoreOct
   const startedAt = useRef<number | null>(null);
   const lastAt = useRef<number | null>(null);
   const gaps = useRef<number[]>([]);
+  /** Wait mode: recent ms per tick between right answers, to guess where you'll be a moment from now. */
+  const pace = useRef<number[]>([]);
   const wrongKeys = useRef(0);
   const stopClicks = useRef<() => void>(() => {});
   /** When the last run ended: a late last note shouldn't start the next run straight away. */
@@ -80,6 +85,7 @@ function usePassagePlay({ song, from, to, hands, mode, bpm, latencyMs, ignoreOct
     startedAt.current = null;
     lastAt.current = null;
     gaps.current = [];
+    pace.current = [];
     wrongKeys.current = 0;
     matcher.current = matcherFor(0);
   };
@@ -107,7 +113,7 @@ function usePassagePlay({ song, from, to, hands, mode, bpm, latencyMs, ignoreOct
     setMissed(new Set());
     setOk(new Set());
     setDone(false);
-    setRunning({ start, judge, countInEnd: start + full * msPerTick });
+    setRunning({ start, judge, countInEnd: start + full * msPerTick, lead, zero, shift });
   };
 
   useEffect(() => {
@@ -180,7 +186,11 @@ function usePassagePlay({ song, from, to, hands, mode, bpm, latencyMs, ignoreOct
       setMissed(missedRef.current);
       matcher.current = matcherFor(at);
     } else if (r === 'correct') {
-      if (lastAt.current !== null) gaps.current.push(now - lastAt.current);
+      if (lastAt.current !== null) {
+        gaps.current.push(now - lastAt.current);
+        const dt = events[at].time - events[at - 1].time;
+        if (dt > 0) pace.current = [...pace.current, (now - lastAt.current) / dt].slice(-8);
+      }
       lastAt.current = now;
       setWrong([]);
       const next = at + 1;
@@ -195,9 +205,24 @@ function usePassagePlay({ song, from, to, hands, mode, bpm, latencyMs, ignoreOct
     }
   };
 
+  /**
+   * Where the music is at `now`, in score ticks, and how fast it's going (ms per tick). In time, from the clock; waiting
+   * for you, from the next note to play, moving on at your recent pace (but never past that note).
+   */
+  const position = (now: number): { tick: number; msPerTick: number } => {
+    if (running) return { tick: (now - running.start - running.shift) / msPerTick - running.lead + running.zero, msPerTick };
+    const end = score.measures[to].start + score.measures[to].length;
+    if (mode === 'tempo') return { tick: done ? end : (events[0]?.time ?? end), msPerTick };
+    const c = cursorRef.current;
+    const next = events[c]?.time ?? end;
+    const p = pace.current.length ? [...pace.current].sort((a, b) => a - b)[pace.current.length >> 1] : msPerTick;
+    if (c === 0 || lastAt.current === null) return { tick: next, msPerTick: p };
+    return { tick: Math.min(next, events[c - 1].time + (now - lastAt.current) / p), msPerTick: p };
+  };
+
   const state: PlayState = { cursor, missed, ok };
   const colors = useMemo(() => playColors(events, chains, state), [events, chains, cursor, missed, ok]);
-  return { events, colors, wrong, done, running: !!running, startedAt: running?.start ?? null, countIn, noteOn, reset, current: events[cursor] };
+  return { events, colors, wrong, done, running: !!running, startedAt: running?.start ?? null, countIn, noteOn, reset, current: events[cursor], cursor, position };
 }
 
 /** The staves a hand doesn't use, to draw faded while practicing the other hand. */
@@ -301,9 +326,44 @@ export function SongPractice({ data, update, song, from: from0, to: to0, hands: 
   useShowOnKeyboard(play.wrong.length && play.current && mode === 'wait' ? play.current.midis : [], play.wrong);
   useNoteEvents((e) => {
     if (e.type !== 'on') return;
+    setPeek(null);
     if (play.done || (mode === 'tempo' && !play.running)) setResult(null);
     play.noteOn(e.note, e.time ?? performance.now());
   });
+  // Long stretches are shown a page at a time, turned as you play.
+  const turn = s.pageTurn;
+  const perLine = useMemo(() => barsPerLine(score, from, to), [score, from, to]);
+  const pages = useMemo(() => pagesOf(from, to, perLine, turn.lines), [from, to, perLine, turn.lines]);
+  const [page, setPage] = useState(0);
+  const [countdown, setCountdown] = useState<number | null>(null);
+  /** A page picked by hand (to look ahead or back), until the next key is played. */
+  const [peek, setPeek] = useState<number | null>(null);
+  const positionRef = useRef(play.position);
+  positionRef.current = play.position;
+  useEffect(() => {
+    setPeek(null);
+    if (pages.length < 2) {
+      setPage(0);
+      setCountdown(null);
+      return;
+    }
+    const update = () => {
+      const { tick, msPerTick } = positionRef.current(performance.now());
+      const p = pageAt(score, pages, tick, turn.at);
+      setPage(p);
+      const secs = p < pages.length - 1 ? ((turnTick(score, pages[p], turn.at) - tick) * msPerTick) / 1000 : Infinity;
+      setCountdown(turn.countdown > 0 && secs <= turn.countdown ? Math.max(1, Math.ceil(secs)) : null);
+    };
+    update();
+    const id = window.setInterval(update, 100);
+    return () => window.clearInterval(id);
+  }, [score, pages, turn.at, turn.countdown]);
+  const shown = Math.min(peek ?? page, pages.length - 1);
+  const setTurn = (patch: Partial<typeof turn>) =>
+    update((d) => {
+      d.settings.pageTurn = { ...d.settings.pageTurn, ...patch };
+    });
+
   const weak = weakBars(data.songBars[song.id]);
   const label = (i: number) => score.measures[i].number;
   const setBpm = (v: number) =>
@@ -401,6 +461,40 @@ export function SongPractice({ data, update, song, from: from0, to: to0, hands: 
           <option value="tempo">In time</option>
         </select>
       </label>
+      {pages.length > 1 && (
+        <>
+          <label className="opt">
+            Lines per page
+            <select id="sp-lines" value={turn.lines} onChange={(e) => setTurn({ lines: Number(e.target.value) })}>
+              {[3, 4, 5, 6].map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="opt">
+            Turn the page
+            <select id="sp-turn" value={turn.at} onChange={(e) => setTurn({ at: e.target.value as TurnAt })}>
+              {(Object.keys(TURN_AT_LABEL) as TurnAt[]).map((k) => (
+                <option key={k} value={k}>
+                  {TURN_AT_LABEL[k]}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="opt">
+            Countdown before turning
+            <select id="sp-countdown" value={turn.countdown} onChange={(e) => setTurn({ countdown: Number(e.target.value) })}>
+              {[0, 2, 3, 5].map((v) => (
+                <option key={v} value={v}>
+                  {v ? `${v} seconds` : 'None'}
+                </option>
+              ))}
+            </select>
+          </label>
+        </>
+      )}
       {mode === 'tempo' && (
         <label className="opt">
           Tempo (♩ per minute)
@@ -418,15 +512,40 @@ export function SongPractice({ data, update, song, from: from0, to: to0, hands: 
         play.events.length ? (
           <ScoreView
             xml={song.xml}
-            from={from}
-            to={to}
+            from={pages[shown][0]}
+            to={pages[shown][1]}
             colors={play.colors}
             dimStaves={otherStaves(song, hands)}
+            barsPerLine={perLine}
+            paper
           />
         ) : (
           <div className="result panel">
             <p>Nothing for the {HANDS_LABEL[hands].toLowerCase()} to play in these bars.</p>
           </div>
+        )
+      }
+      desk
+      overlay={
+        pages.length > 1 && (
+          <>
+            {countdown !== null && peek === null && (
+              <div className="page-turn" aria-live="polite">
+                Page turn <b>{countdown}</b>
+              </div>
+            )}
+            <div className="page-nav">
+              <button aria-label="Previous page" disabled={shown === 0} onClick={() => setPeek(shown - 1)}>
+                ‹
+              </button>
+              <span>
+                Page {shown + 1} of {pages.length}
+              </span>
+              <button aria-label="Next page" disabled={shown === pages.length - 1} onClick={() => setPeek(shown + 1)}>
+                ›
+              </button>
+            </div>
+          </>
         )
       }
       status={status}

@@ -1,5 +1,5 @@
 import { ArrowLeft, ChevronRight, Play, Search, Upload } from 'lucide-react';
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { keyLabel } from '../music/notes';
 import { meterName } from '../music/rhythm';
 import { readScoreFile } from '../songs/musicxml';
@@ -21,6 +21,7 @@ import {
   songDeckId,
   type SongOptions,
 } from '../songs/library';
+import { barsPerLine } from '../songs/pages';
 import { weakBars } from '../songs/play';
 import type { Hands } from '../songs/score';
 import type { AppData } from '../storage';
@@ -296,6 +297,7 @@ function SongPage({
 }) {
   const deckId = songDeckId(song.id);
   const entry = corpusEntry(song.id);
+  const perLine = useMemo(() => barsPerLine(song.score), [song.score]);
   const learning = data.settings.enabledDecks.includes(deckId);
   const opts = data.songs[song.id] ?? DEFAULT_SONG_OPTIONS;
   const cards = songCards(song, opts);
@@ -440,8 +442,19 @@ function SongPage({
         </p>
       </section>
 
-      <section className="panel score-panel">
-        <ScoreView xml={song.xml} fit="width" />
+      <section className="sheet-wrap">
+        <ScoreView
+          xml={song.xml}
+          fit="width"
+          paper
+          barsPerLine={perLine}
+          heading={
+            <header className="sheet-head">
+              <h3>{song.title}</h3>
+              <p>{song.composer}</p>
+            </header>
+          }
+        />
       </section>
 
       {song.source === 'imported' && (

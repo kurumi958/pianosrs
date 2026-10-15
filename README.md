@@ -85,7 +85,10 @@ Learn to read sheet music with spaced repetition (like Anki), using a real MIDI 
   the passage before, and finally the whole song. Passages grade themselves: more than one slip in ten notes is Again, any
   slip is Okay, a clean run is Good, and a clean run without hesitating is Easy. You can also practice any bars, either hand,
   waiting for you or in time with a count-in and metronome; the bar strip shows which bars are learned and which keep tripping
-  you up. Repeats are read once, as written; grace notes aren't judged.
+  you up. Repeats are read once, as written; grace notes aren't judged. Scores are drawn as pages of sheet music, with a
+  steady number of bars per line (fewer for busier music). Practicing a long stretch shows one page at a time (3–6 lines)
+  and turns it as you play: at the end of the page, at the start of its last bar or halfway through it, after an optional
+  countdown. In time, the countdown follows the clock; waiting for you, it follows your recent pace. ‹ › look ahead or back.
 - **Stats**: accuracy, answer speed, a due forecast and your trickiest notes.
 - Laid out for a landscape screen (16:9 monitor, or a tablet or phone held sideways), ideally full screen: the music fills
   the middle, and the whole 88-key keyboard is docked along the bottom at full width, so keys never move. The full-screen
@@ -131,6 +134,10 @@ start a test again. A quick run-through:
 6. In **Lessons**, learn the test course's first unit, then review it with quick right answers: unit 2 should open.
 7. **Songs**: open *Ode to Joy*, click bar 1 and play it hands together, then try *In time*. *Learn next* plays through its first
    passages; they then appear in Review under Songs.
+8. **Practice the whole song** on a longer piece (Clementi's Op. 36 No. 1, III): check the page turns land where you'd want
+   them in both modes, with and without the countdown.
+9. **Sound** (Settings → Sound): play softly and hard to hear the velocity layers, and hold the **sustain pedal**: released
+   keys should ring on until the pedal comes up (not yet tested with a real pedal).
 
 ## Desktop app
 

@@ -4,6 +4,7 @@ import type { SightStat } from './srs/weak';
 import type { CustomDeckSpec } from './srs/custom';
 import { type CardState, type CardStatus, DEFAULT_SCHEDULER, type Grade, type SchedulerConfig } from './srs/scheduler';
 import type { CourseState } from './srs/study';
+import { DEFAULT_PAGE_TURN, type PageTurnSettings } from './songs/pages';
 
 /** "alternate" rotates through treble, bass and grand staff phrases. */
 export type SightClef = 'treble' | 'bass' | 'grand' | 'alternate';
@@ -73,6 +74,8 @@ export interface Settings {
   midiInput: string;
   /** Play a tone for on-screen / computer-keyboard input (a real piano makes its own sound). */
   onscreenSound: boolean;
+  /** Practicing a long stretch of a song: lines per page, and when and how the page turns. */
+  pageTurn: PageTurnSettings;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
@@ -106,6 +109,7 @@ export const DEFAULT_SETTINGS: Settings = {
   latencyMs: 0,
   midiInput: 'all',
   onscreenSound: true,
+  pageTurn: DEFAULT_PAGE_TURN,
 };
 
 export interface ReviewLogEntry {
@@ -186,7 +190,7 @@ export function normalize(raw: unknown): AppData {
   return {
     version: 1,
     cards: d.cards ?? {},
-    settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}), srs: { ...DEFAULT_SRS, ...(d.settings?.srs ?? {}) } }),
+    settings: migrateSettings({ ...DEFAULT_SETTINGS, ...(d.settings ?? {}), srs: { ...DEFAULT_SRS, ...(d.settings?.srs ?? {}) }, pageTurn: { ...DEFAULT_PAGE_TURN, ...(d.settings?.pageTurn ?? {}) } }),
     courses: d.courses ?? {},
     newByDay: d.newByDay ?? {},
     reviewsByDay: d.reviewsByDay ?? {},

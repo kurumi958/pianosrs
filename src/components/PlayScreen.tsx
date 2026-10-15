@@ -16,6 +16,8 @@ interface Props {
   showLabels: boolean;
   /** Overlay inside the music box (results). */
   overlay?: ReactNode;
+  /** The music is a page of sheet music lying on a desk. */
+  desk?: boolean;
 }
 
 /**
@@ -23,14 +25,14 @@ interface Props {
  * buttons are in exactly the same place on both: [context | music | options], a status line,
  * the full 88-key keyboard, then the bottom bar.
  */
-export function PlayScreen({ left, music, right, status, statusTone = '', bottom, showLabels, overlay }: Props) {
+export function PlayScreen({ left, music, right, status, statusTone = '', bottom, showLabels, overlay, desk }: Props) {
   const held = useHeldNotes();
   const marks = useKeyMarks();
   return (
     <div className="play-screen">
       <div className="play-top">
         <aside className="play-side left">{left}</aside>
-        <div className="music-box">
+        <div className={desk ? 'music-box desk' : 'music-box'}>
           {music}
           {overlay}
         </div>

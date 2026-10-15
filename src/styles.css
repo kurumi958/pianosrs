@@ -22,6 +22,8 @@
   --sage: #557548;
   --brick: #b0402c;
   --score: #fcf8ee;
+  /* A page of sheet music (light in both themes, like the engraving). */
+  --page: #fffdf7;
   --shadow: 0 1px 2px rgba(60, 40, 20, 0.06), 0 8px 24px rgba(60, 40, 20, 0.06);
   /* The wordmark only: uncial capitals, after the lettering of the Bolero album cover. */
   --brand: 'Uncial Antiqua', 'Spectral', Georgia, serif;
@@ -1747,6 +1749,94 @@ textarea.text-input {
 }
 .score-view.box .score-host {
   flex: none;
+}
+.score-view.paper .score-sheet {
+  background: var(--page);
+  border: 1px solid rgba(60, 40, 20, 0.12);
+  border-radius: 3px;
+  box-shadow: 0 1px 2px rgba(60, 40, 20, 0.08), 0 10px 30px rgba(60, 40, 20, 0.12);
+}
+.score-view.box.paper {
+  align-items: stretch;
+}
+.score-view.box.paper .score-sheet {
+  flex: 1;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  overflow: hidden;
+}
+/* The practice desk: the page lies on it. */
+.music-box.desk {
+  background: color-mix(in srgb, var(--paper) 70%, var(--line-strong));
+  padding: 14px 24px;
+}
+.page-turn {
+  position: absolute;
+  bottom: 18px;
+  right: 34px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: var(--crown);
+  color: var(--crown-ink);
+  font: 600 0.9rem var(--sans);
+  box-shadow: var(--shadow);
+}
+.page-turn b {
+  font-size: 1.3rem;
+  font-variant-numeric: tabular-nums;
+}
+.page-nav {
+  position: absolute;
+  bottom: 22px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--page) 85%, transparent);
+  color: #6b5d50;
+  font: 500 0.8rem var(--sans);
+}
+.page-nav button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  padding: 2px 6px;
+  cursor: pointer;
+}
+.page-nav button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+/* A song's score, as a page of sheet music. */
+.sheet-wrap {
+  display: flex;
+  justify-content: center;
+  padding: 8px 0 4px;
+}
+.sheet-wrap .score-view {
+  max-width: 920px;
+}
+.sheet-head {
+  text-align: center;
+  color: #2a211d;
+  margin-bottom: 10px;
+}
+.sheet-head h3 {
+  margin: 4px 0 2px;
+  font-size: 1.5rem;
+}
+.sheet-head p {
+  margin: 0;
+  text-align: right;
+  font-family: var(--display);
+  font-size: 0.95rem;
 }
 .score-panel {
   background: var(--score);

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { type ReactNode, useEffect, useRef, useState } from 'react';
 import type { GraphicalNote, OpenSheetMusicDisplay } from 'opensheetmusicdisplay';
 import { useElementSize } from '../hooks';
 import { COLORS } from '../music/notation';
@@ -29,7 +29,16 @@ interface Props {
    * "width": the width of the page, growing downwards (a whole score to scroll through).
    */
   fit?: 'box' | 'width';
+  /** Bars on each line (0: as many as fit). */
+  barsPerLine?: number;
+  /** Drawn as a sheet of paper, with margins. */
+  paper?: boolean;
+  /** Drawn above the music on the sheet (a title). */
+  heading?: ReactNode;
 }
+
+/** A sheet's margins around the music, in px (left/right, top/bottom). */
+const PAPER = { x: 36, y: 28 };
 
 type Indexed = Map<string, { gn: GraphicalNote; staff: number }[]>;
 
@@ -57,7 +66,7 @@ function indexNotes(osmd: OpenSheetMusicDisplay): Indexed {
 }
 
 /** A MusicXML score engraved with OpenSheetMusicDisplay, with notes recoloured live as you play. */
-export function ScoreView({ xml, from, to, colors, dimStaves = [], fit = 'box' }: Props) {
+export function ScoreView({ xml, from, to, colors, dimStaves = [], fit = 'box', barsPerLine = 0, paper = false, heading }: Props) {
   const [box, size] = useElementSize<HTMLDivElement>();
   const host = useRef<HTMLDivElement>(null);
   const osmd = useRef<{ osmd: OpenSheetMusicDisplay; xml: string } | null>(null);
@@ -65,12 +74,12 @@ export function ScoreView({ xml, from, to, colors, dimStaves = [], fit = 'box' }
   const [error, setError] = useState<string | null>(null);
   const [rendered, setRendered] = useState(0);
   // Re-engrave only when the box changes size noticeably.
-  const w = Math.round(size.width / 24) * 24;
-  const h = Math.round(size.height / 24) * 24;
+  const w = Math.round((size.width - (paper ? 2 * PAPER.x : 0)) / 24) * 24;
+  const h = Math.round((size.height - (paper ? 2 * PAPER.y : 0)) / 24) * 24;
 
   useEffect(() => {
     const el = host.current;
-    if (!el || !w || (fit === 'box' && !h)) return;
+    if (!el || w <= 0 || (fit === 'box' && h <= 0)) return;
     let cancelled = false;
     setError(null);
     (async () => {
@@ -107,10 +116,13 @@ export function ScoreView({ xml, from, to, colors, dimStaves = [], fit = 'box' }
       const r = o.EngravingRules;
       r.MinMeasureToDrawIndex = r.MinMeasureToDrawNumber = from ?? 0;
       r.MaxMeasureToDrawIndex = r.MaxMeasureToDrawNumber = to ?? Number.MAX_VALUE;
+      r.RenderXMeasuresPerLineAkaSystem = barsPerLine;
+      // A full last line spans the page like the others (a short one, the end of a piece, doesn't).
+      r.StretchLastSystemLine = barsPerLine > 0 && from !== undefined && to !== undefined && (to - from + 1) % barsPerLine === 0;
       el.style.width = `${w}px`;
       const svgHeight = () => Number(el.querySelector('svg')?.getAttribute('height')) || el.scrollHeight;
       if (fit === 'width') {
-        o.zoom = w < 700 ? 0.8 : 1;
+        o.zoom = w < 700 ? 0.8 : paper ? 0.9 : 1;
         o.render();
       } else {
         // The largest size whose layout fits the box.
@@ -129,7 +141,7 @@ export function ScoreView({ xml, from, to, colors, dimStaves = [], fit = 'box' }
     return () => {
       cancelled = true;
     };
-  }, [xml, from, to, fit, w, h]);
+  }, [xml, from, to, fit, w, h, barsPerLine]);
 
   // Recolour without re-engraving.
   const dimKey = dimStaves.join(',');
@@ -151,8 +163,11 @@ export function ScoreView({ xml, from, to, colors, dimStaves = [], fit = 'box' }
   }, [colors, dimKey, rendered]);
 
   return (
-    <div className={`score-view ${fit}`} ref={box}>
-      <div className="score-host" ref={host} role="img" aria-label="Sheet music" />
+    <div className={`score-view ${fit}${paper ? ' paper' : ''}`} ref={box}>
+      <div className="score-sheet" style={paper ? { padding: `${PAPER.y}px ${PAPER.x}px` } : undefined}>
+        {heading}
+        <div className="score-host" ref={host} role="img" aria-label="Sheet music" />
+      </div>
       {error && <p className="warn small">Couldn't draw this score: {error}</p>}
     </div>
   );

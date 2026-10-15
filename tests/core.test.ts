@@ -328,7 +328,7 @@ describe('things to work on', () => {
   it('makes focus items come up far more often', () => {
     const pool = deckCards('treble-staff');
     const draw = weightedSampler(pool, {}, mulberry32(4), false, (c) => (c.id === 'treble:F4' ? 8 : 1));
-    const n = Array.from({ length: 600 }, draw).filter((c) => c.id === 'treble:F4').length;
+    const n = Array.from({ length: 600 }, () => draw()!).filter((c) => c.id === 'treble:F4').length;
     expect(n).toBeGreaterThan(150); // ~8/(8+11) of draws, against ~1/12 without the boost
   });
 });
@@ -526,6 +526,34 @@ describe('rhythmic phrases', () => {
           });
         }
       }
+  });
+
+  it('keeps the hands apart: never the same key at once, the left hand below the right', () => {
+    // A tiny pool where both hands know middle C, as with the first lessons or the test decks.
+    const rh = ['C4', 'D4', 'E4'].map((n) => CARD_BY_ID.get(`treble:${n}`)!);
+    const lh = ['C4', 'B3', 'A3'].map((n) => CARD_BY_ID.get(`bass:${n}`)!);
+    for (const style of ['melody', 'bass-melody', 'alternate', 'together'] as GrandStyle[]) {
+      const p = grandStaffPhrase({ rh, lh, both: [] }, {}, Array.from({ length: 30 }, () => QUARTERS(4)), style, mulberry32(11));
+      for (const e of phraseEvents(p)) {
+        const midis = e.pitches.map(toMidi);
+        expect(new Set(midis).size, style).toBe(midis.length);
+      }
+      p.measures.forEach((m) => {
+        const t = voiceNotes({ ...p, measures: [m] }, 'treble').filter((x) => x.note.pitches.length);
+        const b = voiceNotes({ ...p, measures: [m] }, 'bass').filter((x) => x.note.pitches.length);
+        for (const x of t)
+          for (const y of b) {
+            const overlap = x.tick < y.tick + ticksOf(y.note) && y.tick < x.tick + ticksOf(x.note);
+            if (overlap) expect(Math.max(...y.note.pitches.map(toMidi)), style).toBeLessThan(Math.min(...x.note.pitches.map(toMidi)));
+          }
+      });
+    }
+  });
+
+  it('never repeats a note straight away, even when two decks hold the same note', () => {
+    const pool = [...deckCards('treble-staff').slice(0, 5), ...deckCards('treble-staff').slice(0, 5).map((c) => ({ ...c, id: `copy:${c.id}` }))];
+    const p = generatePhrase(pool, {}, 300, mulberry32(8), true);
+    for (let i = 1; i < p.length; i++) expect(toMidi(p[i].notes[0])).not.toBe(toMidi(p[i - 1].notes[0]));
   });
 
   it('merges notes that start together into one event', () => {

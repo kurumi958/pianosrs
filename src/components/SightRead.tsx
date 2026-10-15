@@ -26,17 +26,32 @@ interface Props {
 
 const onlyHand = (hand: 'treble' | 'bass') => (c: Card) => c.hands[hand].length > 0 && c.hands[hand === 'treble' ? 'bass' : 'treble'].length === 0;
 
-/** Cards you know (or, early on, the first few you're about to learn) so there's always something to read. */
+/** Distinct notes a hand's pool needs for a phrase to sound like a tune rather than two keys back and forth. */
+const MIN_NOTES = 5;
+
+const pitchesOf = (cards: Card[]) => new Set(cards.map((c) => c.notes.map(toMidi).join(',')));
+
+/**
+ * Cards you know, topped up (early on) to at least MIN_NOTES different notes: first with the cards you're about to
+ * learn, then with the staff notes nearest the ones you know, so there's always something tune-like to read.
+ */
 function readable(known: Card[], upcoming: Card[], fallbackDeck: string): Card[] {
-  if (known.length >= 3) return known;
-  const source = upcoming.length ? upcoming : (DECKS.find((d) => d.id === fallbackDeck)?.cards ?? []);
-  return [...known, ...source.filter((c) => !known.includes(c))].slice(0, 5);
+  const out = [...known];
+  const add = (c: Card) => {
+    if (pitchesOf(out).size >= MIN_NOTES || out.includes(c)) return;
+    if (!pitchesOf(out).has(c.notes.map(toMidi).join(','))) out.push(c);
+  };
+  upcoming.forEach(add);
+  const deck = DECKS.find((d) => d.id === fallbackDeck)?.cards ?? [];
+  const centre = out.length ? out.reduce((a, c) => a + toMidi(c.notes[0]), 0) / out.length : 60;
+  [...deck].sort((a, b) => Math.abs(toMidi(a.notes[0]) - centre) - Math.abs(toMidi(b.notes[0]) - centre)).forEach(add);
+  return out;
 }
 
 /** How much more often a focus item comes up than an ordinary note in a focused phrase. */
 const FOCUS_BOOST = 8;
 
-function buildPhrase(data: AppData, staff: StaffKind, focus: Focus | null): Phrase {
+export function buildPhrase(data: AppData, staff: StaffKind, focus: Focus | null): Phrase {
   const input = { enabledDecks: data.settings.enabledDecks, courses: data.courses, states: data.cards };
   const known = knownCards(input);
   const upcoming = studyCards(input);

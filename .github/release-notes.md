@@ -1,5 +1,11 @@
 A prototype of PianoSRS as a desktop app. It's the same app as the web version, in its own window, with your progress saved on this computer.
 
+## New in 0.3.1
+
+- **Songs look like sheet music**: a song's score is drawn as a page with its title, and a steady number of bars per line so busy music isn't crammed.
+- **Page turns**: *Practice the whole song* shows one page at a time (3–6 lines) and turns it as you play: at the end of the page, at the start of its last bar, or halfway through it, with an optional countdown. ‹ › look ahead or back.
+- **Better sight-reading phrases**: melodies move like real tunes (no more bars of one repeated note), end on the home note, and on the grand staff the hands never land on the same key: the left hand stays below the right.
+
 ## New in 0.3.0
 
 - **190 classical pieces** in Songs, complete and ready to learn a few bars at a time: Bach (the Anna Magdalena notebook, Little Preludes, all fifteen Two-Part Inventions, preludes and fugues from the Well-Tempered Clavier), Clementi, Czerny, Burgmüller's Op. 100, Schumann's *Album for the Young* and *Scenes from Childhood*, Tchaikovsky, Mozart, Beethoven (including all of *Für Elise* and the *Moonlight* Sonata's first two movements), Kuhlau, Haydn, Handel, Chopin's Preludes, Satie and Grieg. Browse them by collection, filter by level (now up to *Advanced*) or search. Engraved by the Mutopia Project; repeat signs, dynamics and ornaments aren't shown yet.
